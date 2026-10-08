@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>سواقي | Sawaqee</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="manifest" href="/manifest.json">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    body { font-family: 'Cairo', sans-serif; -webkit-tap-highlight-color: transparent; }
+    #map { height: 100%; width: 100%; border-radius: 1rem; overflow: hidden; z-index: 10; }
+    
+    .bus-marker-pin {
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 42px; border-radius: 50%;
+      border: 3px solid #ffffff;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5); color: white; font-size: 17px;
+      transition: all 0.2s ease;
+    }
+    .bus-marker-pin.moving { 
+      background: #10b981 !important; 
+      animation: pulse-green 1.8s infinite; 
+    }
+    .bus-marker-pin.stopped { 
+      background: #ef4444 !important; 
+      animation: pulse-red 2s infinite; 
+    }
+    .bus-marker-pin.overspeed { 
+      background: #f97316 !important; 
+      border-color: #fef08a !important;
+      animation: pulse-overspeed 0.9s infinite; 
+    }
+
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    @keyframes pulse-overspeed {
+      0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.9); }
+      70% { box-shadow: 0 0 0 14px rgba(249, 115, 22, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+    }
+
+    @media print {
+      body > *:not(#dedicatedPrintArea) { display: none !important; }
+      #dedicatedPrintArea {
+        display: block !important; position: absolute; left: 0; top: 0; width: 100%;
+        background: white !important; color: black !important; padding: 15px 25px !important; margin: 0 !important;
+      }
+      table { width: 100% !important; border-collapse: collapse !important; margin-bottom: 15px; }
+      th, td { border: 1px solid #94a3b8 !important; color: black !important; padding: 7px 10px !important; font-size: 11px; }
+      th { background-color: #f1f5f9 !important; font-weight: bold; }
+    }
+    @media screen {
+      #dedicatedPrintArea { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <header class="bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 sm:px-8 py-3 flex justify-between items-center sticky top-0 z-40">
+    <div class="flex items-center gap-3">
+      <img src="/logo.png" alt="Sawaqee Logo" class="w-10 h-10 object-contain rounded-xl drop-shadow">
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg font-black tracking-wide text-white">SAWAQI</h1>
+          <span class="text-xs text-sky-400 font-bold" data-i18n="brandArabic">سواقي</span>
+        </div>
+        <p class="text-[11px] text-slate-400 font-medium" data-i18n="appSubtitle">نظام تتبع الأسطول وساعات العمل الميدانية</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2.5">
+      <button onclick="toggleLanguage()" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-400 px-3 py-1.5 rounded-xl border border-slate-700 font-bold transition flex items-center gap-1">
+        <i class="fa-solid fa-globe"></i>
+        <span id="langBtnText">English</span>
+      </button>
+
+      <button id="logoutBtn" onclick="logout()" class="hidden text-xs bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white px-3.5 py-1.5 rounded-xl border border-rose-500/30 font-bold transition">
+        <i class="fa-solid fa-arrow-right-from-bracket ml-1"></i> <span data-i18n="logout">خروج</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-4 sm:p-6">
+
+    <!-- شاشة الدخول السريعة -->
+    <div id="loginSection" class="max-w-md mx-auto mt-6 sm:mt-10 bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl relative text-center">
+      <div class="mb-5">
+        <img src="/logo.png" alt="Sawaqee" class="w-32 h-32 sm:w-36 sm:h-36 object-contain mx-auto drop-shadow-xl">
+      </div>
+
+      <div id="loginErrorMsg" class="hidden mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold text-center"></div>
+
+      <form onsubmit="event.preventDefault(); handleLogin();" class="space-y-4 text-right">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5" data-i18n="selectUserLabel">اختر المستخدم</label>
+          <div class="relative">
+            <select id="loginUserSelect" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl p-3.5 text-sm font-semibold appearance-none focus:outline-none focus:ring-2 focus:ring-sky-500">
+              <option value="admin">admin</option>
+            </select>
+            <i class="fa-solid fa-chevron-down absolute left-4 top-4 text-xs text-slate-400 pointer-events-none"></i>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5" data-i18n="passwordLabel">كلمة المرور</label>
+          <input type="password" id="loginPin" placeholder="••••••••" maxlength="12" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-center text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-600">
+        </div>
+
+        <button type="submit" id="btnSubmitLogin" class="w-full bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white font-black py-3.5 rounded-xl shadow-lg shadow-sky-600/30 transition text-base" data-i18n="loginBtn">
+          دخول
+        </button>
+      </form>
+    </div>
+
+    <!-- واجهة السائق -->
+    <div id="driverSection" class="hidden max-w-lg mx-auto space-y-5">
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl flex justify-between items-center">
+        <div>
+          <span class="text-xs text-slate-400" data-i18n="driverLabel">السائق</span>
+          <h3 id="driverNameDisplay" class="text-xl font-black text-sky-400 mt-0.5">--</h3>
+          <div id="driverPlateDisplay" class="text-xs font-mono text-slate-400 mt-0.5">--</div>
+        </div>
+        <div id="gpsStatusBadge" class="text-xs px-3.5 py-1.5 rounded-xl font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2">
+          <i class="fa-solid fa-satellite-dish"></i>
+          <span id="gpsStatusText" data-i18n="gpsSearching">جاري البحث عن GPS...</span>
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-b from-slate-900 to-slate-900/90 border border-slate-800 p-7 rounded-3xl text-center shadow-xl space-y-5">
+        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
+          <span data-i18n="shiftTimerHeader">عداد وقت الشيفت الحالي</span>
+        </div>
+        <div id="activeTimer" class="text-6xl font-mono font-black text-white tracking-tight drop-shadow-md">00:00:00</div>
+
+        <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 inline-flex items-center gap-2 text-xs font-bold text-sky-400">
+          <i class="fa-solid fa-route text-sky-400"></i>
+          <span data-i18n="distanceTraveledLabel">المسافة المقطوعة بالشيفت:</span>
+          <span id="driverShiftKm" class="font-mono text-white text-sm">0.0 كم</span>
+        </div>
+
+        <button id="shiftActionBtn" onclick="toggleShift()" class="w-full text-lg font-black py-4.5 rounded-2xl shadow-xl transition-all duration-300 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30">
+          <i class="fa-solid fa-key"></i>
+          <span data-i18n="startShift">استلام الباص (بدء الشيفت)</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-center">
+          <span class="text-xs font-semibold text-slate-400" data-i18n="baseHoursToday">ساعات أساسية (اليوم)</span>
+          <div id="driverDailyBase" class="text-2xl font-black text-sky-400 mt-1">0س 0د</div>
+          <div id="remainingBaseInfo" class="text-[10px] text-slate-400 mt-1">--</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-center">
+          <span class="text-xs font-semibold text-slate-400" data-i18n="overtimeHoursToday">ساعات إضافية (اليوم)</span>
+          <div id="driverDailyOvertime" class="text-2xl font-black text-amber-400 mt-1">0س 0د</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-3">
+        <div class="flex justify-between items-center">
+          <h4 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-sky-400"></i>
+            <span data-i18n="shiftHistoryTitle">سجل الشيفتات المنجزة</span>
+          </h4>
+          <span class="text-[11px] text-slate-400" id="driverHistoryTotalShifts">--</span>
+        </div>
+        <div id="shiftsHistoryList" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
+      </div>
+    </div>
+
+    <!-- لوحة تحكم الإدارة -->
+    <div id="adminSection" class="hidden space-y-6">
+
+      <div id="speedAlertBanner" class="hidden bg-rose-600 text-white px-4 py-2.5 rounded-2xl shadow-xl flex justify-between items-center text-xs font-bold animate-bounce">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-base"></i>
+          <span id="speedAlertText">تنبيه سرعة زائدة!</span>
+        </div>
+        <button onclick="document.getElementById('speedAlertBanner').classList.add('hidden')" class="text-white hover:text-slate-200"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-xl font-bold">
+            <i class="fa-solid fa-bus"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="activeBusesCount">الباصات النشطة الآن</div>
+            <div id="activeDriversCount" class="text-2xl font-black text-white mt-0.5">0</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-xl font-bold">
+            <i class="fa-solid fa-bolt"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="overtimeShiftsCount">في شيفت إضافي حالياً</div>
+            <div id="overtimeShiftsCount" class="text-2xl font-black text-white mt-0.5">0</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 text-xl font-bold">
+            <i class="fa-solid fa-users"></i>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="totalDriversCount">إجمالي السائقين</div>
+            <div id="totalDriversCount" class="text-2xl font-black text-white mt-0.5">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- لوحة حالة الأسطول والنشاط الميداني المحدثة بالثواني اللحظية -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4 flex flex-col h-[550px]">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+              <h3 class="font-bold text-sm text-slate-200" data-i18n="fleetStatusTitle">حالة الأسطول والنشاط الميداني</h3>
+            </div>
+            <span class="text-xs text-slate-400 font-bold" id="activeDriversCountBadge">0 نشط</span>
+          </div>
+          <div id="activeDriversList" class="space-y-3 overflow-y-auto flex-1 pr-1"></div>
+        </div>
+
+        <!-- خريطة التتبع -->
+        <div id="mapWrapperCard" class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col h-[550px] overflow-hidden">
+          <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-map-location-dot text-sky-400"></i>
+              <h3 class="font-bold text-sm text-slate-200" data-i18n="liveMapTitle">خريطة التتبع الميداني المباشر</h3>
+            </div>
+            
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-xl text-xs">
+                <span class="text-slate-400 font-bold" data-i18n="maxSpeedLabel">السرعة القصوى:</span>
+                <input type="number" id="adminSpeedLimitInput" value="90" min="20" max="180" class="w-12 bg-slate-900 border border-slate-600 rounded px-1.5 py-0.5 text-center font-bold text-amber-400 focus:outline-none">
+                <span class="text-slate-400 text-[10px]" data-i18n="kmhUnit">كم/س</span>
+                <button onclick="updateSystemSpeedLimit()" class="bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-900 px-2 py-0.5 rounded font-bold transition" data-i18n="saveBtn">حفظ</button>
+              </div>
+
+              <button onclick="fitAllBusesOnMap()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-700 font-bold transition text-sky-400">
+                <i class="fa-solid fa-compress"></i> <span data-i18n="fleetFitBtn">الأسطول</span>
+              </button>
+              <button onclick="toggleMapStyle()" class="text-xs bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-700 font-bold transition text-slate-200">
+                <i class="fa-solid fa-layer-group"></i> <span id="mapStyleBtnText">قمر صناعي</span>
+              </button>
+              <button onclick="toggleFullScreenMap()" class="text-xs bg-sky-600 hover:bg-sky-500 px-2.5 py-1.5 rounded-xl font-bold transition text-white shadow" title="Fullscreen">
+                <i class="fa-solid fa-expand"></i>
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 w-full rounded-2xl overflow-hidden relative border border-slate-800">
+            <div id="map"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-4">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-id-card text-sky-400"></i>
+              <h3 class="font-bold text-base text-white" data-i18n="driversManagementTitle">إدارة السائقين</h3>
+            </div>
+            <button onclick="openDriverModal('create')" class="text-xs bg-sky-600 hover:bg-sky-500 text-white px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 shadow-lg shadow-sky-600/20">
+              <i class="fa-solid fa-plus"></i> <span data-i18n="addDriverBtn">إضافة سائق</span>
+            </button>
+          </div>
+          <div id="driversTable" class="space-y-2.5 max-h-80 overflow-y-auto pr-1"></div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-4">
+          <div class="flex items-center gap-2 border-b border-slate-800 pb-4">
+            <i class="fa-solid fa-clock text-emerald-400"></i>
+            <h3 class="font-bold text-base text-white" data-i18n="reportsCardTitle">سجل ساعات العمل والكيلومترات</h3>
+          </div>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <select id="reportDriverSelect" class="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white"></select>
+            <input type="month" id="reportMonthSelect" class="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-white">
+          </div>
+
+          <div class="flex gap-2.5 pt-1 flex-wrap">
+            <button onclick="fetchReport()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl text-xs py-2.5 transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 min-w-[130px]">
+              <i class="fa-solid fa-file-lines"></i>
+              <span data-i18n="viewReportBtn">عرض التقرير</span>
+            </button>
+            <button onclick="printAllDriversReport()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 font-bold rounded-xl text-xs px-3 py-2.5 transition text-sky-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-print"></i>
+              <span data-i18n="printAllBtn">طباعة كشف الأسطول 📋</span>
+            </button>
+            <button onclick="exportReportToExcel()" class="bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-400 font-bold rounded-xl text-xs px-3.5 py-2.5 transition flex items-center gap-1.5 shadow">
+              <i class="fa-solid fa-file-excel"></i>
+              <span data-i18n="exportExcelBtn">تصدير Excel 📊</span>
+            </button>
+          </div>
+
+          <div id="reportResult" class="hidden bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-4"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <div id="driverModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative space-y-5 my-8">
+      
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 id="modalTitle" class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-user-gear text-sky-400"></i>
+          <span>بيانات السائق والمركبة</span>
+        </h3>
+        <button onclick="closeDriverModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="modalError" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold text-center"></div>
+
+      <form onsubmit="event.preventDefault(); saveDriverData();" class="space-y-3.5 text-xs text-right">
+        <input type="hidden" id="modalDriverId">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">اسم السائق / المستخدم للدخول *</label>
+            <input type="text" id="modalDriverUsername" required placeholder="مثال: driver1" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">رقم لوحة السيارة *</label>
+            <input type="text" id="modalDriverPlate" required placeholder="مثال: أ ب ج 101" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">كلمة المرور للدخول *</label>
+            <input type="password" id="modalDriverPin" placeholder="••••••••" maxlength="12" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <span id="pinNote" class="text-[10px] text-slate-500 hidden">اتركها فارغة للإبقاء عليها دون تغيير</span>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-300 mb-1">رقم الجوال (اختياري)</label>
+            <input type="tel" id="modalDriverPhone" placeholder="05XXXXXXXX" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">ساعات العمل الأساسية المقررة (يومياً)</label>
+          <input type="number" step="0.5" id="modalDriverBaseHours" value="8" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+
+        <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+          <button type="button" id="btnDeleteDriver" onclick="deleteCurrentDriver()" class="hidden text-rose-400 hover:text-rose-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-rose-500/10 transition">
+            <i class="fa-solid fa-trash ml-1"></i> حذف السائق
+          </button>
+          
+          <div class="flex gap-2 mr-auto">
+            <button type="button" onclick="closeDriverModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl font-bold transition">إلغاء</button>
+            <button type="submit" id="btnSaveDriver" class="bg-sky-600 hover:bg-sky-500 text-white px-5 py-2 rounded-xl font-bold transition shadow-lg shadow-sky-600/30">حفظ البيانات</button>
+          </div>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <div id="dedicatedPrintArea"></div>
+
+  <script>
+    const socket = io();
+    let currentUser = null;
+    let activeShift = null;
+    let timerInterval = null;
+    let adminLiveSecondsTicker = null; // مؤقت الثواني المباشر لشاشات الأدمن
+    let isActionLocked = false;
+    let map = null;
+    let markers = {};
+    let routePolylines = {};
+    let isSatellite = false;
+    let currentTileLayer = null;
+    let currentLang = 'ar';
+    let driversMemory = [];
+    let systemMaxSpeed = 90;
+    
+    // ذاكرة السائقين النشطين لحساب الثواني الحية لهم في لوحة الأدمن
+    let activeDriversCache = [];
+
+    let lastReportData = null;
+    let lastReportMonth = '';
+    let lastReportDaysList = [];
+    let reportAutoRefreshTimer = null;
+    let driverCachedPrevBaseMinutes = 0;
+
+    let silentAudioCtx = null;
+    let wakeLockObj = null;
+
+    const i18n = {
+      ar: {
+        brandArabic: 'سواقي',
+        appSubtitle: 'نظام تتبع الأسطول وساعات العمل الميدانية',
+        logout: 'خروج',
+        selectUserLabel: 'اختر المستخدم',
+        passwordLabel: 'كلمة المرور',
+        loginBtn: 'دخول',
+        driverLabel: 'السائق',
+        gpsSearching: 'جاري البحث عن GPS...',
+        gpsConnected: 'GPS متصل بدقة عالية',
+        shiftTimerHeader: 'عداد وقت الشيفت الحالي',
+        distanceTraveledLabel: 'المسافة المقطوعة بالشيفت:',
+        startShift: 'استلام الباص (بدء الشيفت)',
+        endShift: 'تسليم الباص (إنهاء الشيفت)',
+        baseHoursToday: 'ساعات أساسية (اليوم)',
+        overtimeHoursToday: 'ساعات إضافية (اليوم)',
+        shiftHistoryTitle: 'سجل الشيفتات المنجزة',
+        activeBusesCount: 'الباصات النشطة الآن',
+        overtimeShiftsCount: 'في شيفت إضافي حالياً',
+        totalDriversCount: 'إجمالي السائقين',
+        fleetStatusTitle: 'حالة الأسطول والنشاط الميداني',
+        liveMapTitle: 'خريطة التتبع الميداني المباشر',
+        maxSpeedLabel: 'السرعة القصوى:',
+        kmhUnit: 'كم/س',
+        saveBtn: 'حفظ',
+        fleetFitBtn: 'الأسطول',
+        driversManagementTitle: 'إدارة السائقين',
+        addDriverBtn: 'إضافة سائق',
+        reportsCardTitle: 'سجل ساعات العمل والكيلومترات',
+        viewReportBtn: 'عرض التقرير',
+        printAllBtn: 'طباعة كشف الأسطول 📋',
+        exportExcelBtn: 'تصدير Excel 📊',
+        regularShift: 'شيفت أساسي',
+        overtimeShift: 'شيفت إضافي 🔥',
+        activeNow: 'نشط الآن 🟢',
+        shiftClosed: 'شيفت مغلق ⚪',
+        stopped: 'متوقف',
+        todayBadge: 'اليوم',
+        shiftWord: 'شيفت'
+      },
+      en: {
+        brandArabic: 'SAWAQI',
+        appSubtitle: 'Fleet Tracking & Work Shift Dispatch System',
+        logout: 'Logout',
+        selectUserLabel: 'Select User',
+        passwordLabel: 'Password',
+        loginBtn: 'Sign In',
+        driverLabel: 'Driver',
+        gpsSearching: 'Searching GPS...',
+        gpsConnected: 'GPS Connected (High Accuracy)',
+        shiftTimerHeader: 'Current Shift Live Timer',
+        distanceTraveledLabel: 'Shift Distance Traveled:',
+        startShift: 'Check-in (Start Shift)',
+        endShift: 'Check-out (End Shift)',
+        baseHoursToday: 'Base Hours (Today)',
+        overtimeHoursToday: 'Overtime Hours (Today)',
+        shiftHistoryTitle: 'Completed Shifts Log',
+        activeBusesCount: 'Active Buses Now',
+        overtimeShiftsCount: 'In Overtime Shift',
+        totalDriversCount: 'Total Fleet Drivers',
+        fleetStatusTitle: 'Fleet Status & Dispatch',
+        liveMapTitle: 'Live Operational Radar Map',
+        maxSpeedLabel: 'Speed Limit:',
+        kmhUnit: 'km/h',
+        saveBtn: 'Save',
+        fleetFitBtn: 'Fleet',
+        driversManagementTitle: 'Drivers Directory',
+        addDriverBtn: 'Add Driver',
+        reportsCardTitle: 'Working Hours & Mileage Report',
+        viewReportBtn: 'Generate Report',
+        printAllBtn: 'Print Fleet Report 📋',
+        exportExcelBtn: 'Export Excel 📊',
+        regularShift: 'Regular Shift',
+        overtimeShift: 'Overtime Shift 🔥',
+        activeNow: 'Active Now 🟢',
+        shiftClosed: 'Shift Ended ⚪',
+        stopped: 'Stopped',
+        todayBadge: 'Today',
+        shiftWord: 'Shift'
+      }
+    };
+
+    function t(key) { return i18n[currentLang][key] || key; }
+
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[currentLang][key]) el.innerText = i18n[currentLang][key];
+      });
+      document.getElementById('langBtnText').innerText = currentLang === 'ar' ? 'English' : 'عربي';
+      document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.lang = currentLang;
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'ar' ? 'en' : 'ar';
+      localStorage.setItem('sawaqi_lang', currentLang);
+      applyTranslations();
+      reloadMapTileWithLanguage();
+      if (currentUser) {
+        if (currentUser.role === 'driver') loadDriverHistory();
+        else loadAdminData();
+      }
+    }
+
+    function formatMinutes(mins) {
+      const h = Math.floor(mins / 60);
+      const m = Math.round(mins % 60);
+      return currentLang === 'ar' ? `${h}س ${m}د` : `${h}h ${m}m`;
+    }
+
+    function formatSecondsToTimer(diffSeconds) {
+      const h = String(Math.floor(diffSeconds / 3600)).padStart(2, '0');
+      const m = String(Math.floor((diffSeconds % 3600) / 60)).padStart(2, '0');
+      const s = String(diffSeconds % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    function getTileUrl(type) {
+      const hl = currentLang === 'ar' ? 'ar' : 'en';
+      if (type === 'satellite') return `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=${hl}`;
+      return `https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=${hl}`;
+    }
+
+    function reloadMapTileWithLanguage() {
+      if (!map) return;
+      if (currentTileLayer) map.removeLayer(currentTileLayer);
+      currentTileLayer = L.tileLayer(getTileUrl(isSatellite ? 'satellite' : 'street'), { maxZoom: 20 }).addTo(map);
+    }
+
+    async function startBackgroundKeepAlive() {
+      try {
+        if ('wakeLock' in navigator) wakeLockObj = await navigator.wakeLock.request('screen');
+      } catch(e) {}
+
+      try {
+        if (!silentAudioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            silentAudioCtx = new AudioContext();
+            const osc = silentAudioCtx.createOscillator();
+            const gain = silentAudioCtx.createGain();
+            gain.gain.value = 0.001;
+            osc.connect(gain);
+            gain.connect(silentAudioCtx.destination);
+            osc.start();
+          }
+        }
+      } catch(e) {}
+    }
+
+    function stopBackgroundKeepAlive() {
+      if (wakeLockObj) { try { wakeLockObj.release(); } catch(e) {} wakeLockObj = null; }
+      if (silentAudioCtx) { try { silentAudioCtx.close(); } catch(e) {} silentAudioCtx = null; }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && activeShift) startBackgroundKeepAlive();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedLang = localStorage.getItem('sawaqi_lang');
+      if (savedLang) currentLang = savedLang;
+      applyTranslations();
+      setDefaultMonth();
+      loadDriversDropdown();
+
+      const savedUser = localStorage.getItem('sawaqi_user');
+      if (savedUser) {
+        try {
+          currentUser = JSON.parse(savedUser);
+          document.getElementById('logoutBtn').classList.remove('hidden');
+          document.getElementById('loginSection').classList.add('hidden');
+          if (currentUser.role === 'driver') setupDriverView();
+          else setupAdminView();
+        } catch(e) {
+          localStorage.removeItem('sawaqi_user');
+        }
+      }
+    });
+
+    function setDefaultMonth() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      document.getElementById('reportMonthSelect').value = `${yyyy}-${mm}`;
+    }
+
+    async function loadSystemSpeedLimit() {
+      try {
+        const res = await fetch('/api/settings/speed-limit');
+        const data = await res.json();
+        if (data.maxSpeed) {
+          systemMaxSpeed = data.maxSpeed;
+          document.getElementById('adminSpeedLimitInput').value = systemMaxSpeed;
+        }
+      } catch(e) {}
+    }
+
+    async function updateSystemSpeedLimit() {
+      const val = Number(document.getElementById('adminSpeedLimitInput').value);
+      if (val > 0) {
+        await fetch('/api/settings/speed-limit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ maxSpeed: val })
+        });
+        alert(currentLang === 'ar' ? `تم ضبط السرعة القصوى: ${val} كم/س` : `Speed limit updated: ${val} km/h`);
+      }
+    }
+
+    function toggleFullScreenMap() {
+      const card = document.getElementById('mapWrapperCard');
+      if (!document.fullscreenElement) {
+        if (card.requestFullscreen) card.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+      setTimeout(() => map.invalidateSize(), 300);
+    }
+
+    async function loadDriversDropdown() {
+      const select = document.getElementById('loginUserSelect');
+      const reportSelect = document.getElementById('reportDriverSelect');
+      
+      const cached = localStorage.getItem('cached_drivers');
+      if (cached) {
+        try {
+          const list = JSON.parse(cached);
+          renderDriverOptions(list, select, reportSelect);
+        } catch(e) {}
+      }
+
+      try {
+        const res = await fetch('/api/drivers');
+        const drivers = await res.json();
+        driversMemory = drivers;
+        localStorage.setItem('cached_drivers', JSON.stringify(drivers));
+        renderDriverOptions(drivers, select, reportSelect);
+        const totalEl = document.getElementById('totalDriversCount');
+        if (totalEl) totalEl.innerText = drivers.length;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderDriverOptions(drivers, select, reportSelect) {
+      select.innerHTML = `<option value="admin">admin</option>`;
+      if (reportSelect) reportSelect.innerHTML = '';
+      drivers.forEach(d => {
+        const displayLabel = `${d.username} ${d.plate_number ? `(${d.plate_number})` : ''}`;
+        select.innerHTML += `<option value="${d.username}">${displayLabel}</option>`;
+        if (reportSelect) reportSelect.innerHTML += `<option value="${d.id}">${displayLabel}</option>`;
+      });
+    }
+
+    async function handleLogin() {
+      const username = document.getElementById('loginUserSelect').value;
+      const pin_code = document.getElementById('loginPin').value.trim();
+      const errorBox = document.getElementById('loginErrorMsg');
+      const submitBtn = document.getElementById('btnSubmitLogin');
+
+      errorBox.classList.add('hidden');
+      if (!pin_code) {
+        errorBox.innerText = currentLang === 'ar' ? 'يرجى كتابة كلمة المرور' : 'Please enter password';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, pin_code })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        currentUser = data.user;
+        localStorage.setItem('sawaqi_user', JSON.stringify(currentUser));
+
+        document.getElementById('logoutBtn').classList.remove('hidden');
+        document.getElementById('loginSection').classList.add('hidden');
+
+        if (currentUser.role === 'driver') setupDriverView();
+        else setupAdminView();
+      } catch (err) {
+        errorBox.innerText = err.message;
+        errorBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function logout() {
+      clearInterval(timerInterval);
+      clearInterval(adminLiveSecondsTicker);
+      clearInterval(reportAutoRefreshTimer);
+      stopBackgroundKeepAlive();
+      localStorage.removeItem('sawaqi_user');
+
+      currentUser = null;
+      activeShift = null;
+      document.getElementById('logoutBtn').classList.add('hidden');
+      document.getElementById('driverSection').classList.add('hidden');
+      document.getElementById('adminSection').classList.add('hidden');
+      document.getElementById('loginSection').classList.remove('hidden');
+      document.getElementById('loginPin').value = '';
+    }
+
+    async function setupDriverView() {
+      document.getElementById('driverSection').classList.remove('hidden');
+      document.getElementById('driverNameDisplay').innerText = currentUser.username;
+      document.getElementById('driverPlateDisplay').innerText = currentUser.plate_number ? `${currentLang === 'ar' ? 'لوحة' : 'Plate'}: ${currentUser.plate_number}` : '';
+
+      const res = await fetch(`/api/shifts/active/${currentUser.id}`);
+      const data = await res.json();
+      activeShift = data.activeShift;
+
+      updateDriverUI();
+      await loadDriverHistory();
+      startDriverGpsTracking();
+
+      if (activeShift) startBackgroundKeepAlive();
+    }
+
+    function updateDriverUI() {
+      const btn = document.getElementById('shiftActionBtn');
+      if (activeShift) {
+        btn.innerHTML = `<i class="fa-solid fa-flag-checkered"></i><span>${t('endShift')}</span>`;
+        btn.className = 'w-full text-lg font-black py-4.5 rounded-2xl shadow-xl transition bg-amber-600 hover:bg-amber-500 shadow-amber-600/30 flex items-center justify-center gap-3';
+        startTimer(new Date(activeShift.start_time));
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-key"></i><span>${t('startShift')}</span>`;
+        btn.className = 'w-full text-lg font-black py-4.5 rounded-2xl shadow-xl transition bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30 flex items-center justify-center gap-3';
+        stopTimer();
+      }
+    }
+
+    async function toggleShift() {
+      if (isActionLocked) return;
+      const btn = document.getElementById('shiftActionBtn');
+
+      if (activeShift) {
+        const confirmMsg = currentLang === 'ar' ? 'هل أنت متأكد من تسليم الباص وإنهاء الشيفت الحالي؟' : 'Are you sure you want to end this shift?';
+        if (!confirm(confirmMsg)) return;
+      }
+
+      isActionLocked = true;
+      btn.disabled = true;
+
+      try {
+        if (!activeShift) {
+          const res = await fetch('/api/shifts/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ driverId: currentUser.id })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+
+          activeShift = { id: data.shiftId, start_time: data.startTime };
+          updateDriverUI();
+          sendInstantLocation();
+          startBackgroundKeepAlive();
+          await loadDriverHistory();
+        } else {
+          const res = await fetch('/api/shifts/end', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ driverId: currentUser.id })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+
+          alert(currentLang === 'ar' 
+            ? `🎉 تم إنهاء الشيفت بنجاح:\nالمدة: ${formatMinutes(data.durationMinutes)}\nالمسافة: ${(data.distanceKm || 0).toFixed(1)} كم\nالساعات الأساسية: ${formatMinutes(data.baseMinutes)}\nالساعات الإضافية: ${formatMinutes(data.overtimeMinutes)}`
+            : `🎉 Shift Completed:\nDuration: ${formatMinutes(data.durationMinutes)}\nDistance: ${(data.distanceKm || 0).toFixed(1)} km\nBase: ${formatMinutes(data.baseMinutes)}\nOvertime: ${formatMinutes(data.overtimeMinutes)}`
+          );
+          activeShift = null;
+          stopBackgroundKeepAlive();
+          updateDriverUI();
+          await loadDriverHistory();
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setTimeout(() => {
+          isActionLocked = false;
+          btn.disabled = false;
+        }, 1200);
+      }
+    }
+
+    function startTimer(startTime) {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        const diffSeconds = Math.floor((new Date() - startTime) / 1000);
+        document.getElementById('activeTimer').innerText = formatSecondsToTimer(diffSeconds);
+        updateDriverLiveCumulativeHours(diffSeconds);
+      }, 1000);
+    }
+
+    function updateDriverLiveCumulativeHours(diffSeconds) {
+      if (!currentUser) return;
+      const currentShiftMinutes = Math.floor(diffSeconds / 60);
+      const totalDailyMinutes = driverCachedPrevBaseMinutes + currentShiftMinutes;
+      const targetBaseMinutes = (currentUser.daily_base_hours || 8) * 60;
+
+      const liveBase = Math.min(totalDailyMinutes, targetBaseMinutes);
+      const liveOvertime = Math.max(0, totalDailyMinutes - targetBaseMinutes);
+
+      document.getElementById('driverDailyBase').innerText = formatMinutes(liveBase);
+      document.getElementById('driverDailyOvertime').innerText = formatMinutes(liveOvertime);
+
+      const remMinutes = Math.max(0, targetBaseMinutes - totalDailyMinutes);
+      const remInfo = document.getElementById('remainingBaseInfo');
+      if (remInfo) {
+        if (remMinutes > 0) {
+          remInfo.innerText = currentLang === 'ar' ? `متبقي ${formatMinutes(remMinutes)} للبدء في الإضافي` : `${formatMinutes(remMinutes)} remaining to overtime`;
+          remInfo.className = 'text-[10px] text-slate-400 mt-1';
+        } else {
+          remInfo.innerText = currentLang === 'ar' ? 'أكملت الأساسي! العداد الآن يحسب إضافي 🔥' : 'Base completed! Counting overtime now 🔥';
+          remInfo.className = 'text-[10px] text-emerald-400 font-bold mt-1';
+        }
+      }
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      document.getElementById('activeTimer').innerText = '00:00:00';
+    }
+
+    async function loadDriverHistory() {
+      const res = await fetch(`/api/shifts/history/${currentUser.id}`);
+      const list = await res.json();
+      const container = document.getElementById('shiftsHistoryList');
+      container.innerHTML = '';
+
+      let prevBaseToday = 0;
+      let prevOvertimeToday = 0;
+      const today = new Date().toISOString().split('T')[0];
+
+      if (!list || list.length === 0) {
+        container.innerHTML = `<div class="text-center text-slate-500 text-xs py-4">${currentLang === 'ar' ? 'لا توجد شيفتات مسجلة حتى الآن' : 'No shifts logged yet'}</div>`;
+        document.getElementById('driverHistoryTotalShifts').innerText = '0';
+        return;
+      }
+
+      document.getElementById('driverHistoryTotalShifts').innerText = `${list.length} ${t('shiftWord')}`;
+
+      let currentMonthKey = '';
+      let listHtml = '';
+
+      list.forEach((s) => {
+        let duration = s.duration_minutes || ((s.base_minutes || 0) + (s.overtime_minutes || 0));
+        let sBase = s.base_minutes || 0;
+        let sOver = s.overtime_minutes || 0;
+
+        if (s.shift_date === today && s.status === 'completed') {
+          prevBaseToday += sBase;
+          prevOvertimeToday += sOver;
+        }
+
+        if (s.status === 'active') {
+          duration = Math.max(1, Math.round((new Date() - new Date(s.start_time)) / 60000));
+        }
+
+        const shiftMonth = s.shift_date.substring(0, 7);
+        if (shiftMonth !== currentMonthKey) {
+          currentMonthKey = shiftMonth;
+          const [y, m] = currentMonthKey.split('-');
+          const monthName = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
+          listHtml += `
+            <div class="bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] font-bold text-sky-400 mt-2 mb-1 flex justify-between items-center">
+              <span>📅 ${monthName}</span>
+            </div>
+          `;
+        }
+
+        const startFormatted = new Date(s.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const endFormatted = s.end_time ? new Date(s.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (currentLang === 'ar' ? 'نشط الآن ⚡' : 'Active ⚡');
+        const kmDisplay = (s.distance_km || 0).toFixed(1);
+        const hasOvertime = (s.overtime_minutes > 0);
+
+        listHtml += `
+          <div class="bg-slate-800/80 p-3 rounded-2xl border ${hasOvertime ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700/60'} text-xs flex justify-between items-center transition">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-slate-200">${s.shift_date}</span>
+                ${s.shift_date === today ? `<span class="text-[9px] bg-sky-500/20 text-sky-400 px-1.5 py-0.2 rounded font-bold">${t('todayBadge')}</span>` : ''}
+                ${hasOvertime ? `<span class="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded">${t('overtimeShift')}</span>` : ''}
+              </div>
+              <div class="text-[11px] text-slate-400 font-mono mt-0.5" dir="ltr">
+                ${startFormatted} ➔ ${endFormatted}
+              </div>
+            </div>
+
+            <div class="text-left font-sans">
+              <div class="font-bold text-sky-400 text-sm">${formatMinutes(duration)}</div>
+              <div class="text-[10px] text-slate-400 font-mono mt-0.5"> ${kmDisplay} ${t('kmhUnit').replace('/س', '').replace('/h', '')}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = listHtml;
+      driverCachedPrevBaseMinutes = prevBaseToday;
+
+      if (activeShift) {
+        const currentDiffSeconds = Math.floor((new Date() - new Date(activeShift.start_time)) / 1000);
+        updateDriverLiveCumulativeHours(currentDiffSeconds);
+      } else {
+        document.getElementById('driverDailyBase').innerText = formatMinutes(prevBaseToday);
+        document.getElementById('driverDailyOvertime').innerText = formatMinutes(prevOvertimeToday);
+      }
+    }
+
+    function sendInstantLocation() {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => emitLocation(pos),
+          () => {},
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
+
+    async function getBatteryPercentage() {
+      try {
+        if ('getBattery' in navigator) {
+          const batt = await navigator.getBattery();
+          return Math.round(batt.level * 100);
+        }
+      } catch(e) {}
+      return null;
+    }
+
+    function startDriverGpsTracking() {
+      if (!('geolocation' in navigator)) return;
+      sendInstantLocation();
+      
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          if (currentUser && currentUser.role === 'driver' && activeShift) {
+            emitLocation(pos);
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      );
+    }
+
+    async function emitLocation(pos) {
+      const badge = document.getElementById('gpsStatusBadge');
+      badge.className = 'text-xs px-3.5 py-1.5 rounded-xl font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-2';
+      document.getElementById('gpsStatusText').innerText = t('gpsConnected');
+
+      const speedKmH = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+      const battery = await getBatteryPercentage();
+
+      socket.emit('update_location', {
+        driverId: currentUser.id,
+        username: currentUser.username,
+        plateNumber: currentUser.plate_number || '',
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        speed: speedKmH,
+        battery
+      });
+    }
+
+    // تهيئة لوحة الأدمن مع تفعيل عداد الثواني الحي المستمر
+    function setupAdminView() {
+      document.getElementById('adminSection').classList.remove('hidden');
+      if (!map) {
+        initMap();
+        loadSystemSpeedLimit();
+      }
+      loadAdminData();
+
+      // تشغيل عداد الثواني الحي للكروت الميدانية كل 1 ثانية بالضبط
+      clearInterval(adminLiveSecondsTicker);
+      adminLiveSecondsTicker = setInterval(() => {
+        updateAdminCardsLiveTimer();
+      }, 1000);
+
+      // بث لحظي فوري عند بدء السائق للشيفت
+      socket.on('shift_started', () => {
+        loadAdminData();
+      });
+
+      // بث لحظي فوري عند إنهاء الشيفت
+      socket.on('shift_ended', (data) => {
+        loadAdminData();
+        const repSelect = document.getElementById('reportDriverSelect');
+        if (repSelect && Number(repSelect.value) === Number(data.driverId)) {
+          const repBox = document.getElementById('reportResult');
+          if (repBox && !repBox.classList.contains('hidden')) {
+            fetchReport();
+          }
+        }
+      });
+
+      socket.on('drivers_list_updated', () => {
+        loadDriversDropdown();
+        loadAdminData();
+      });
+
+      socket.on('speed_limit_changed', (data) => {
+        if (data.maxSpeed) {
+          systemMaxSpeed = data.maxSpeed;
+          const input = document.getElementById('adminSpeedLimitInput');
+          if (input) input.value = systemMaxSpeed;
+        }
+      });
+
+      socket.on('speed_violation_alert', (data) => {
+        const banner = document.getElementById('speedAlertBanner');
+        banner.classList.remove('hidden');
+        document.getElementById('speedAlertText').innerText = `🚨 ${data.username} تجاوز السرعة (${data.speed} كم/س) - الحد: ${data.maxSpeed}`;
+      });
+    }
+
+    // تحديث عدادات الثواني الحية لجميع السائقين النشطين في لوحة الأدمن
+    function updateAdminCardsLiveTimer() {
+      const now = new Date();
+      activeDriversCache.forEach(d => {
+        const timerEl = document.getElementById(`admin_timer_display_${d.driver_id}`);
+        if (timerEl && d.start_time) {
+          const diffSeconds = Math.max(0, Math.floor((now - new Date(d.start_time)) / 1000));
+          timerEl.innerText = formatSecondsToTimer(diffSeconds);
+        }
+      });
+    }
+
+    async function loadAdminData() {
+      const res = await fetch('/api/admin/active-drivers');
+      const allFleetDrivers = await res.json();
+
+      let activeCount = 0;
+      let overtimeCount = 0;
+      activeDriversCache = [];
+
+      const listContainer = document.getElementById('activeDriversList');
+      listContainer.innerHTML = '';
+
+      if (allFleetDrivers.length === 0) {
+        listContainer.innerHTML = `<div class="text-center text-slate-500 text-xs py-10">${currentLang === 'ar' ? 'لا يوجد باصات مسجلة' : 'No fleet buses registered'}</div>`;
+      }
+
+      allFleetDrivers.forEach(d => {
+        const isActive = (d.shift_status === 'active');
+        if (isActive) {
+          activeCount++;
+          activeDriversCache.push(d); // حفظ في الذاكرة لتحديث الثواني كل ثانية
+        }
+
+        if (isActive) {
+          const start = new Date(d.start_time);
+          const elapsedSeconds = Math.max(0, Math.floor((new Date() - start) / 1000));
+          const elapsedMins = Math.floor(elapsedSeconds / 60);
+
+          const totalBaseRequiredMins = (d.daily_base_hours || 8) * 60;
+          const totalEstimatedMinsToday = (d.completed_base_minutes_today || 0) + elapsedMins;
+          const isOvertimeNow = totalEstimatedMinsToday > totalBaseRequiredMins;
+          if (isOvertimeNow) overtimeCount++;
+
+          const isMoving = d.location && d.location.speed > 0;
+          const isOverSpeed = d.location && d.location.isOverSpeed;
+          const speedText = isMoving ? `⚡ ${d.location.speed} ${t('kmhUnit')}` : '';
+          const distanceKm = d.location ? (d.location.distanceKm || 0).toFixed(1) : '0.0';
+          const batteryText = d.location && d.location.battery !== null ? `🔋 ${d.location.battery}%` : '';
+
+          let busIconBg = isMoving ? 'bg-emerald-600' : 'bg-rose-600';
+          if (isOverSpeed) busIconBg = 'bg-amber-500 animate-pulse';
+
+          listContainer.innerHTML += `
+            <div id="admin_card_${d.driver_id}" class="bg-slate-800/80 p-3 rounded-2xl border ${isOverSpeed ? 'border-amber-500 bg-amber-500/10' : (isOvertimeNow ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700/60')} space-y-2">
+              <div class="flex justify-between items-start">
+                <div class="flex items-center gap-2.5">
+                  <div id="admin_card_busicon_${d.driver_id}" class="w-9 h-9 rounded-xl ${busIconBg} text-white flex items-center justify-center font-bold text-sm shadow-md transition-colors duration-300">
+                    <i class="fa-solid fa-bus"></i>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h4 class="font-bold text-sm text-white">${d.username}</h4>
+                      <span id="admin_card_battery_${d.driver_id}" class="text-[10px] text-slate-400 font-mono">${batteryText}</span>
+                    </div>
+                    <span class="text-[11px] text-sky-400 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30">${t('activeNow')}</span>
+                  <div id="admin_card_speed_${d.driver_id}" class="text-[11px] font-bold ${isOverSpeed ? 'text-amber-400' : 'text-emerald-400'} mt-1">${speedText}</div>
+                </div>
+              </div>
+              <div class="flex justify-between items-center text-xs text-slate-300 pt-1 border-t border-slate-700/40">
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-white text-xs font-black bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700" id="admin_timer_display_${d.driver_id}">
+                    ${formatSecondsToTimer(elapsedSeconds)}
+                  </span>
+                  <span id="admin_card_km_${d.driver_id}" class="text-sky-400 font-mono font-bold text-[11px]">(${distanceKm} كم)</span>
+                </div>
+                ${d.location ? `<button onclick="focusMapOn(${d.location.lat}, ${d.location.lng})" class="text-[11px] text-sky-400 hover:underline"><i class="fa-solid fa-location-crosshairs"></i> ${currentLang === 'ar' ? 'تتبع' : 'Track'}</button>` : '<span class="text-[11px] text-slate-500">GPS...</span>'}
+              </div>
+            </div>
+          `;
+          if (d.location) updateMapMarker(d.location, isOvertimeNow, d.plate_number);
+
+        } else {
+          const closedInfo = d.lastClosed;
+          const closeTimeStr = (closedInfo && closedInfo.closedAt) ? new Date(closedInfo.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (d.end_time ? new Date(d.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--');
+          const lastDistance = (closedInfo && closedInfo.distanceKm !== undefined) ? closedInfo.distanceKm.toFixed(1) : (d.distance_km || 0).toFixed(1);
+          const lastBattery = (closedInfo && closedInfo.battery !== null) ? `🔋 ${closedInfo.battery}%` : '';
+
+          listContainer.innerHTML += `
+            <div class="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 space-y-2 opacity-85">
+              <div class="flex justify-between items-start">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-9 h-9 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-sm">
+                    <i class="fa-solid fa-bus"></i>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h4 class="font-bold text-sm text-slate-300">${d.username}</h4>
+                      ${lastBattery ? `<span class="text-[10px] text-slate-500 font-mono">${lastBattery}</span>` : ''}
+                    </div>
+                    <span class="text-[11px] text-slate-500 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
+                  </div>
+                </div>
+                <span class="text-[10px] bg-slate-800 text-slate-400 font-bold px-2 py-0.5 rounded-lg border border-slate-700">${t('shiftClosed')}</span>
+              </div>
+              <div class="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                <span>${currentLang === 'ar' ? 'أغلق:' : 'Closed:'} <b class="text-slate-300 font-mono" dir="ltr">${closeTimeStr}</b></span>
+                <span class="font-mono text-slate-400">${lastDistance} كم | ${t('stopped')}</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      document.getElementById('activeDriversCount').innerText = activeCount;
+      document.getElementById('activeDriversCountBadge').innerText = `${activeCount} ${currentLang === 'ar' ? 'نشط' : 'Active'} / ${allFleetDrivers.length} ${currentLang === 'ar' ? 'الإجمالي' : 'Total'}`;
+      document.getElementById('overtimeShiftsCount').innerText = overtimeCount;
+      loadAdminDriversList();
+    }
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true, attributionControl: false }).setView([24.7136, 46.6753], 12);
+      currentTileLayer = L.tileLayer(getTileUrl('street'), { maxZoom: 20 }).addTo(map);
+
+      // استقبال تحديثات الـ GPS وتحديث الخريطة والكارت الجانبي معاً في نفس اللحظة
+      socket.on('driver_location_changed', (data) => {
+        updateMapMarker(data);
+
+        // تحديث الكارت الجانبي للأدمن فوراً (الكيلومترات والسرعة والبطارية ولون الباص)
+        const kmEl = document.getElementById(`admin_card_km_${data.driverId}`);
+        if (kmEl) kmEl.innerText = `(${(data.distanceKm || 0).toFixed(1)} كم)`;
+
+        const speedEl = document.getElementById(`admin_card_speed_${data.driverId}`);
+        if (speedEl) speedEl.innerText = (data.speed > 0) ? `⚡ ${data.speed} ${t('kmhUnit')}` : '';
+
+        const busIcon = document.getElementById(`admin_card_busicon_${data.driverId}`);
+        if (busIcon) {
+          busIcon.className = `w-9 h-9 rounded-xl ${data.speed > 0 ? 'bg-emerald-600' : 'bg-rose-600'} text-white flex items-center justify-center font-bold text-sm shadow-md transition-colors duration-300`;
+        }
+
+        const battEl = document.getElementById(`admin_card_battery_${data.driverId}`);
+        if (battEl && data.battery !== null) battEl.innerText = `🔋 ${data.battery}%`;
+
+        // إذا كان المفتوح هو شاشة السائق الحالي
+        if (currentUser && currentUser.id === data.driverId) {
+          const driverKm = document.getElementById('driverShiftKm');
+          if (driverKm) driverKm.innerText = `${(data.distanceKm || 0).toFixed(1)} ${t('kmhUnit').replace('/س', '').replace('/h', '')}`;
+        }
+      });
+
+      socket.on('driver_stopped', ({ driverId }) => {
+        if (markers[driverId]) {
+          map.removeLayer(markers[driverId]);
+          delete markers[driverId];
+        }
+        if (routePolylines[driverId]) {
+          map.removeLayer(routePolylines[driverId]);
+          delete routePolylines[driverId];
+        }
+        loadAdminData();
+      });
+    }
+
+    function toggleMapStyle() {
+      isSatellite = !isSatellite;
+      reloadMapTileWithLanguage();
+      document.getElementById('mapStyleBtnText').innerText = isSatellite ? (currentLang === 'ar' ? 'شوارع' : 'Streets') : (currentLang === 'ar' ? 'قمر صناعي' : 'Satellite');
+    }
+
+    function fitAllBusesOnMap() {
+      const activeMarkers = Object.values(markers);
+      if (activeMarkers.length > 0) {
+        const group = new L.featureGroup(activeMarkers);
+        map.fitBounds(group.getBounds().pad(0.2), { animate: true });
+      }
+    }
+
+    function updateMapMarker(data, isOvertime = false, fallbackPlate = '') {
+      const { driverId, username, plateNumber, lat, lng, speed, distanceKm, trail, isOverSpeed, battery } = data;
+      const gmapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
+      const isMoving = (speed && speed > 0);
+      const vehiclePlate = plateNumber || fallbackPlate;
+      const displayName = username || 'driver';
+      const kmDisplay = (distanceKm || 0).toFixed(1);
+
+      if (trail && trail.length > 1) {
+        if (!routePolylines[driverId]) {
+          routePolylines[driverId] = L.polyline(trail, {
+            color: '#0284c7',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '6, 6'
+          }).addTo(map);
+        } else {
+          routePolylines[driverId].setLatLngs(trail);
+        }
+      }
+
+      let markerStateClass = isMoving ? 'moving' : 'stopped';
+      if (isOverSpeed) markerStateClass = 'overspeed';
+
+      const customIcon = L.divIcon({
+        className: 'custom-bus-wrapper',
+        html: `
+          <div class="flex flex-col items-center pointer-events-auto" style="transform: translate(-50%, -50%);">
+            <div class="bus-marker-pin ${markerStateClass}">
+              <i class="fa-solid fa-bus"></i>
+            </div>
+            <div class="mt-1 bg-slate-900/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg border border-slate-700 shadow-xl whitespace-nowrap text-center">
+              <div>${displayName}</div>
+              ${vehiclePlate ? `<div class="text-sky-400 text-[9px] font-mono">${vehiclePlate} (${kmDisplay} كم)</div>` : ''}
+            </div>
+          </div>
+        `,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
+
+      const popupHtml = `
+        <div class="text-right p-1 font-sans">
+          <div class="font-black text-sm text-slate-900">${displayName}</div>
+          ${vehiclePlate ? `<div class="text-xs text-sky-700 font-mono font-bold">لوحة: ${vehiclePlate}</div>` : ''}
+          <div class="text-xs text-slate-700 my-1 font-bold">
+            <div>${currentLang === 'ar' ? 'المسافة:' : 'Distance:'} ${kmDisplay} كم</div>
+            <div>${currentLang === 'ar' ? 'الحالة:' : 'Status:'} ${isMoving ? `🚗 (${speed} كم/س)` : '🛑 متوقف'}</div>
+            ${battery !== null ? `<div>🔋 ${battery}%</div>` : ''}
+          </div>
+          <a href="${gmapsLink}" target="_blank" class="inline-block bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg shadow transition">
+            Google Maps
+          </a>
+        </div>
+      `;
+
+      if (markers[driverId]) {
+        markers[driverId].setLatLng([lat, lng]);
+        markers[driverId].setIcon(customIcon);
+        markers[driverId].setPopupContent(popupHtml);
+      } else {
+        markers[driverId] = L.marker([lat, lng], { icon: customIcon }).addTo(map).bindPopup(popupHtml);
+        fitAllBusesOnMap();
+      }
+    }
+
+    function focusMapOn(lat, lng) {
+      map.setView([lat, lng], 17, { animate: true });
+    }
+
+    async function loadAdminDriversList() {
+      const res = await fetch('/api/drivers');
+      const drivers = await res.json();
+      driversMemory = drivers;
+      const container = document.getElementById('driversTable');
+      container.innerHTML = '';
+      drivers.forEach(d => {
+        container.innerHTML += `
+          <div class="bg-slate-800/80 p-3 rounded-2xl flex justify-between items-center text-xs border border-slate-700/60">
+            <div>
+              <div class="font-bold text-white">${d.username} ${d.plate_number ? `<span class="text-sky-400 font-mono text-[11px]">(${d.plate_number})</span>` : ''}</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">${d.daily_base_hours} ${currentLang === 'ar' ? 'س أساسي يومياً' : 'hrs base'} | ${d.phone || ''}</div>
+            </div>
+            <button onclick="openDriverModal('edit', ${d.id})" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1">
+              <i class="fa-solid fa-pen-to-square"></i> ${currentLang === 'ar' ? 'تعديل' : 'Edit'}
+            </button>
+          </div>
+        `;
+      });
+    }
+
+    function openDriverModal(mode, driverId = null) {
+      const modal = document.getElementById('driverModal');
+      const errorBox = document.getElementById('modalError');
+      const deleteBtn = document.getElementById('btnDeleteDriver');
+      const pinNote = document.getElementById('pinNote');
+      const pinInput = document.getElementById('modalDriverPin');
+      const usernameInput = document.getElementById('modalDriverUsername');
+
+      errorBox.classList.add('hidden');
+      modal.classList.remove('hidden');
+
+      if (mode === 'create') {
+        document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-user-plus text-sky-400"></i><span>إضافة سائق ومركبة</span>';
+        document.getElementById('modalDriverId').value = '';
+        usernameInput.value = '';
+        usernameInput.disabled = false;
+        document.getElementById('modalDriverPlate').value = '';
+        document.getElementById('modalDriverPhone').value = '';
+        pinInput.value = '';
+        pinInput.required = true;
+        pinNote.classList.add('hidden');
+        document.getElementById('modalDriverBaseHours').value = '8';
+        deleteBtn.classList.add('hidden');
+      } else {
+        const driver = driversMemory.find(d => d.id === driverId);
+        if (!driver) return;
+
+        document.getElementById('modalTitle').innerHTML = `<i class="fa-solid fa-user-pen text-sky-400"></i><span>تعديل بيانات السائق</span>`;
+        document.getElementById('modalDriverId').value = driver.id;
+        usernameInput.value = driver.username || '';
+        usernameInput.disabled = false;
+        document.getElementById('modalDriverPlate').value = driver.plate_number || '';
+        document.getElementById('modalDriverPhone').value = driver.phone || '';
+        pinInput.value = '';
+        pinInput.required = false;
+        pinNote.classList.remove('hidden');
+        document.getElementById('modalDriverBaseHours').value = driver.daily_base_hours || 8;
+        deleteBtn.classList.remove('hidden');
+      }
+    }
+
+    function closeDriverModal() {
+      document.getElementById('driverModal').classList.add('hidden');
+    }
+
+    async function saveDriverData() {
+      const id = document.getElementById('modalDriverId').value;
+      const username = document.getElementById('modalDriverUsername').value.trim();
+      const plate_number = document.getElementById('modalDriverPlate').value.trim();
+      const phone = document.getElementById('modalDriverPhone').value.trim();
+      const pin_code = document.getElementById('modalDriverPin').value.trim();
+      const daily_base_hours = Number(document.getElementById('modalDriverBaseHours').value);
+
+      const errorBox = document.getElementById('modalError');
+      const saveBtn = document.getElementById('btnSaveDriver');
+
+      if (!username) {
+        errorBox.innerText = 'يرجى كتابة اسم السائق / المستخدم';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      saveBtn.disabled = true;
+      errorBox.classList.add('hidden');
+
+      try {
+        const payload = { username, plate_number, phone, daily_base_hours };
+        if (pin_code) payload.pin_code = pin_code;
+
+        if (!id) {
+          const res = await fetch('/api/drivers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+        } else {
+          const res = await fetch(`/api/drivers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+        }
+
+        closeDriverModal();
+        await loadDriversDropdown();
+        await loadAdminData();
+      } catch (err) {
+        errorBox.innerText = err.message;
+        errorBox.classList.remove('hidden');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    async function deleteCurrentDriver() {
+      const id = document.getElementById('modalDriverId').value;
+      const name = document.getElementById('modalDriverUsername').value;
+      if (!confirm(`هل أنت متأكد من حذف السائق (${name}) نهائياً من النظام؟`)) return;
+
+      try {
+        const res = await fetch(`/api/drivers/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        closeDriverModal();
+        await loadDriversDropdown();
+        await loadAdminData();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function printCurrentDriverReport() {
+      if (!lastReportData) return alert('برجاء عرض التقرير أولاً');
+      const data = lastReportData;
+      const month = lastReportMonth;
+
+      let printTableRows = '';
+      lastReportDaysList.forEach((day, idx) => {
+        const hasOvertime = (day.overtimeMinutes > 0);
+        const km = (day.totalDistanceKm || 0).toFixed(1);
+        printTableRows += `
+          <tr>
+            <td style="text-align: center;">${idx + 1}</td>
+            <td style="text-align: center; font-weight: bold;">${day.date}</td>
+            <td style="text-align: center;">${day.shiftsCount || (day.shifts ? day.shifts.length : 1)}</td>
+            <td style="text-align: center;">${formatMinutes(day.totalMinutes)}</td>
+            <td style="text-align: center;">${km} كم</td>
+            <td style="text-align: center;">${formatMinutes(day.baseMinutes)}</td>
+            <td style="text-align: center; font-weight: bold; ${hasOvertime ? 'color: #b45309;' : ''}">${hasOvertime ? formatMinutes(day.overtimeMinutes) : '-'}</td>
+            <td style="text-align: center;">${hasOvertime ? 'ساعات إضافية محققة' : 'ساعات أساسية منتظمة'}</td>
+          </tr>
+        `;
+      });
+
+      const html = `
+        <div style="font-family: 'Cairo', sans-serif; direction: rtl; text-align: right;">
+          <div style="border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <img src="/logo.png" style="width: 45px; height: 45px; object-fit: contain;">
+              <div>
+                <h2 style="font-size: 19px; font-weight: 900; margin: 0; color: #0284c7;">منظومة سواقي لإدارة وتشغيل النقل (SAWAQI)</h2>
+                <p style="font-size: 12px; color: #475569; margin: 3px 0 0 0;">كشف سجل ساعات العمل والشيفتات والكيلومترات المقطوعة</p>
+              </div>
+            </div>
+            <div style="text-align: left; font-size: 11px; color: #64748b;">
+              <div>تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</div>
+              <div>شهر الاستحقاق: <b>${month}</b></div>
+            </div>
+          </div>
+
+          <table style="margin-bottom: 16px; font-size: 12px;">
+            <tr>
+              <th style="width: 20%; text-align: right;">اسم السائق:</th>
+              <td style="width: 30%; font-weight: bold;">${data.driver.username}</td>
+              <th style="width: 20%; text-align: right;">لوحة السيارة:</th>
+              <td style="width: 30%; font-family: monospace; font-weight: bold;">${data.driver.plate_number || 'غير محدد'}</td>
+            </tr>
+            <tr>
+              <th style="text-align: right;">الساعات الأساسية المقررة:</th>
+              <td>${data.driver.daily_base_hours || 8} ساعات يومياً</td>
+              <th style="text-align: right;">رقم التواصل:</th>
+              <td>${data.driver.phone || 'غير مسجل'}</td>
+            </tr>
+          </table>
+
+          <h4 style="font-size: 12px; font-weight: bold; margin: 12px 0 6px 0; color: #0f172a;">ملخص ساعات العمل والمسافات للشهر:</h4>
+          <table style="margin-bottom: 16px; font-size: 12px;">
+            <thead>
+              <tr>
+                <th style="text-align: center;">أيام العمل الفعلية</th>
+                <th style="text-align: center;">إجمالي الساعات الأساسية</th>
+                <th style="text-align: center;">إجمالي الساعات الإضافية</th>
+                <th style="text-align: center;">المسافة المقطوعة</th>
+                <th style="text-align: center; background-color: #e2e8f0;">إجمالي ساعات العمل</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="text-align: center; font-weight: bold;">${data.workingDaysCount} يوم</td>
+                <td style="text-align: center;">${formatMinutes(data.totalBaseMinutes)}</td>
+                <td style="text-align: center; font-weight: bold; color: #b45309;">${formatMinutes(data.totalOvertimeMinutes)}</td>
+                <td style="text-align: center; font-weight: bold; color: #0284c7;">${data.totalDistanceKm || 0} كم</td>
+                <td style="text-align: center; font-size: 13px; font-weight: 900; background-color: #f1f5f9; color: #0284c7;">${formatMinutes(data.totalMinutes)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4 style="font-size: 12px; font-weight: bold; margin: 12px 0 6px 0; color: #0f172a;">سجل أيام العمل المفصل:</h4>
+          <table style="font-size: 11px; margin-bottom: 20px;">
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">#</th>
+                <th style="width: 15%; text-align: center;">التاريخ</th>
+                <th style="width: 10%; text-align: center;">الشيفتات</th>
+                <th style="width: 15%; text-align: center;">إجمالي الوقت</th>
+                <th style="width: 15%; text-align: center;">المسافة</th>
+                <th style="width: 15%; text-align: center;">ساعات أساسية</th>
+                <th style="width: 15%; text-align: center;">ساعات إضافية</th>
+                <th style="width: 10%; text-align: center;">البيان</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${printTableRows}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      const printArea = document.getElementById('dedicatedPrintArea');
+      printArea.innerHTML = html;
+      window.print();
+    }
+
+    async function fetchReport() {
+      const driverId = document.getElementById('reportDriverSelect').value;
+      const month = document.getElementById('reportMonthSelect').value;
+      const res = await fetch(`/api/reports?driverId=${driverId}&month=${month}`);
+      const data = await res.json();
+
+      lastReportData = data;
+      lastReportMonth = month;
+
+      const box = document.getElementById('reportResult');
+      box.classList.remove('hidden');
+
+      const daysList = data.dailyBreakdown || [];
+      daysList.sort((a, b) => b.date.localeCompare(a.date));
+      lastReportDaysList = daysList;
+
+      clearInterval(reportAutoRefreshTimer);
+      reportAutoRefreshTimer = setInterval(() => {
+        if (!box.classList.contains('hidden')) fetchReport();
+      }, 60000);
+
+      let screenDaysHtml = '';
+
+      if (daysList.length > 0) {
+        screenDaysHtml = `
+          <div class="mt-4 border-t border-slate-800 pt-3 space-y-2">
+            <div class="flex justify-between items-center mb-2">
+              <h5 class="text-xs font-bold text-slate-200">
+                📅 ${currentLang === 'ar' ? 'سجل الأيام والكيلومترات:' : 'Daily Log & Mileage:'}
+              </h5>
+              <span class="text-[10px] text-slate-400 font-mono">
+                ${daysList.length} ${currentLang === 'ar' ? 'أيام مسجلة' : 'Days'}
+              </span>
+            </div>
+        `;
+
+        daysList.forEach((day) => {
+          const hasOvertime = (day.overtimeMinutes > 0);
+          const dayKm = (day.totalDistanceKm || 0).toFixed(1);
+
+          screenDaysHtml += `
+            <div class="bg-slate-900/60 p-3 rounded-2xl border ${hasOvertime ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-800/80'} text-xs flex justify-between items-center">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-slate-200">${day.date}</span>
+                  <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">${day.shiftsCount} ${t('shiftWord')}</span>
+                  ${hasOvertime ? `<span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold">${t('overtimeShift')}</span>` : ''}
+                </div>
+                <div class="text-[11px] text-slate-400 mt-1">
+                  <span>${currentLang === 'ar' ? 'أساسي:' : 'Base:'} <b>${formatMinutes(day.baseMinutes)}</b></span>
+                  ${hasOvertime ? `<span class="text-amber-400 font-bold mr-2 ml-2"> | ${currentLang === 'ar' ? 'إضافي:' : 'OT:'} ${formatMinutes(day.overtimeMinutes)} 🔥</span>` : ''}
+                </div>
+              </div>
+
+              <div class="text-left font-sans">
+                <div class="font-bold text-sky-400 text-sm">${formatMinutes(day.totalMinutes)}</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5"> ${dayKm} كم</div>
+              </div>
+            </div>
+          `;
+        });
+
+        screenDaysHtml += `</div>`;
+      } else {
+        screenDaysHtml = `<div class="mt-4 text-center text-slate-500 text-xs py-3">${currentLang === 'ar' ? 'لا توجد بيانات مسجلة لهذا الشهر' : 'No records for this month'}</div>`;
+      }
+
+      box.innerHTML = `
+        <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
+          <div>
+            <span class="font-bold text-base text-sky-400">${data.driver.username}</span>
+            <span class="text-xs text-slate-400 mr-2 ml-2">📅 ${month}</span>
+            ${data.driver.plate_number ? `<span class="text-xs text-sky-400 font-mono bg-sky-950/60 px-2 py-0.5 rounded border border-sky-800">${data.driver.plate_number}</span>` : ''}
+          </div>
+          <button onclick="printCurrentDriverReport()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+            <i class="fa-solid fa-print"></i>
+            <span>${currentLang === 'ar' ? 'طباعة التقرير' : 'Print'}</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
+          <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 text-center">
+            <span class="text-slate-400 text-[11px]">${currentLang === 'ar' ? 'أيام العمل الفعلية' : 'Work Days'}</span>
+            <div class="text-base font-bold text-white mt-0.5">${data.workingDaysCount}</div>
+          </div>
+
+          <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 text-center">
+            <span class="text-slate-400 text-[11px]">${currentLang === 'ar' ? 'الساعات الأساسية' : 'Base Hours'}</span>
+            <div class="text-base font-bold text-sky-400 mt-0.5">${formatMinutes(data.totalBaseMinutes)}</div>
+          </div>
+
+          <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 text-center">
+            <span class="text-slate-400 text-[11px]">${currentLang === 'ar' ? 'الساعات الإضافية' : 'Overtime Hours'}</span>
+            <div class="text-base font-bold text-amber-400 mt-0.5">${formatMinutes(data.totalOvertimeMinutes)}</div>
+          </div>
+
+          <div class="bg-slate-900/60 p-2.5 rounded-xl border border-sky-500/30 bg-sky-500/5 text-center">
+            <span class="text-sky-400 text-[11px] font-bold">${currentLang === 'ar' ? 'المسافة الكلية' : 'Total Distance'}</span>
+            <div class="text-base font-black text-sky-400 mt-0.5">${data.totalDistanceKm || 0} كم</div>
+          </div>
+        </div>
+
+        ${screenDaysHtml}
+      `;
+    }
+
+    function exportReportToExcel() {
+      if (!lastReportData || !lastReportDaysList.length) {
+        return alert(currentLang === 'ar' ? 'برجاء عرض التقرير أولاً' : 'Please generate report first');
+      }
+
+      let csv = '\uFEFF';
+      csv += 'منظومة سواقي لإدارة وتشغيل النقل (SAWAQI)\n';
+      csv += 'تقرير ساعات العمل والشيفتات والمسافات المقطوعة المعتمد\n\n';
+      csv += `اسم السائق:,"${lastReportData.driver.username}"\n`;
+      csv += `رقم لوحة السيارة:,"${lastReportData.driver.plate_number || 'غير مسجل'}"\n`;
+      csv += `فترة التقرير:,"${lastReportMonth}"\n`;
+      csv += `تاريخ التصدير:,"${new Date().toLocaleDateString('ar-EG')}"\n\n`;
+
+      csv += 'م,التاريخ,عدد الشيفتات,إجمالي وقت العمل,المسافة المقطوعة (كم),الساعات الأساسية,الساعات الإضافية,بيان اليوم\n';
+
+      lastReportDaysList.forEach((day, idx) => {
+        const hasOvertime = (day.overtimeMinutes > 0);
+        const km = (day.totalDistanceKm || 0).toFixed(1);
+        const status = hasOvertime ? 'ساعات إضافية محققة' : 'ساعات أساسية منتظمة';
+        csv += `${idx + 1},${day.date},${day.shiftsCount || 1},"${formatMinutes(day.totalMinutes)}",${km},"${formatMinutes(day.baseMinutes)}","${formatMinutes(day.overtimeMinutes)}","${status}"\n`;
+      });
+
+      csv += `\nالإجمالي العام للشهر,"${lastReportData.workingDaysCount} يوم","${lastReportDaysList.reduce((acc, d) => acc + (d.shiftsCount || 1), 0)} شيفت","${formatMinutes(lastReportData.totalMinutes)}",${lastReportData.totalDistanceKm || 0},"${formatMinutes(lastReportData.totalBaseMinutes)}","${formatMinutes(lastReportData.totalOvertimeMinutes)}",مكتمل ومطابق\n`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `كشف_سواقي_${lastReportData.driver.username}_${lastReportMonth}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    async function printAllDriversReport() {
+      const month = document.getElementById('reportMonthSelect').value;
+      if (!driversMemory || driversMemory.length === 0) {
+        alert(currentLang === 'ar' ? 'لا يوجد سائقين مسجلين' : 'No drivers registered');
+        return;
+      }
+
+      const reportsPromises = driversMemory.map(d => 
+        fetch(`/api/reports?driverId=${d.id}&month=${month}`).then(r => r.json())
+      );
+      const allReports = await Promise.all(reportsPromises);
+
+      let grandBaseMinutes = 0;
+      let grandOvertimeMinutes = 0;
+      let grandTotalMinutes = 0;
+      let grandDistanceKm = 0;
+      let totalWorkingDaysAll = 0;
+
+      let fleetRows = '';
+      allReports.forEach((rep, idx) => {
+        grandBaseMinutes += (rep.totalBaseMinutes || 0);
+        grandOvertimeMinutes += (rep.totalOvertimeMinutes || 0);
+        grandTotalMinutes += (rep.totalMinutes || 0);
+        grandDistanceKm += (rep.totalDistanceKm || 0);
+        totalWorkingDaysAll += (rep.workingDaysCount || 0);
+
+        fleetRows += `
+          <tr>
+            <td style="text-align: center;">${idx + 1}</td>
+            <td style="font-weight: bold;">${rep.driver.username}</td>
+            <td style="text-align: center; font-family: monospace;">${rep.driver.plate_number || '-'}</td>
+            <td style="text-align: center;">${rep.workingDaysCount || 0} يوم</td>
+            <td style="text-align: center;">${formatMinutes(rep.totalBaseMinutes || 0)}</td>
+            <td style="text-align: center; font-weight: bold; color: #b45309;">${formatMinutes(rep.totalOvertimeMinutes || 0)}</td>
+            <td style="text-align: center; font-weight: 900; background-color: #f8fafc; color: #0284c7;">${(rep.totalDistanceKm || 0).toFixed(1)} كم</td>
+            <td style="text-align: center; font-weight: 900; background-color: #f1f5f9;">${formatMinutes(rep.totalMinutes || 0)}</td>
+          </tr>
+        `;
+      });
+
+      const allFleetPrintHtml = `
+        <div style="font-family: 'Cairo', sans-serif; direction: rtl; text-align: right;">
+          <div style="border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <img src="/logo.png" style="width: 48px; height: 48px; object-fit: contain;">
+              <div>
+                <h2 style="font-size: 20px; font-weight: 900; margin: 0; color: #0284c7;">منظومة سواقي لإدارة وتشغيل النقل (SAWAQI)</h2>
+                <p style="font-size: 13px; color: #475569; margin: 3px 0 0 0;">كشف سجل ساعات العمل والمسافات المقطوعة لكامل الأسطول</p>
+              </div>
+            </div>
+            <div style="text-align: left; font-size: 11px; color: #64748b;">
+              <div>تاريخ الطباعة: ${new Date().toLocaleDateString('ar-EG')}</div>
+              <div>شهر الاستحقاق: <b>${month}</b></div>
+            </div>
+          </div>
+
+          <table style="font-size: 11px; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #e2e8f0;">
+                <th style="width: 5%; text-align: center;">#</th>
+                <th style="width: 20%; text-align: right;">اسم السائق</th>
+                <th style="width: 15%; text-align: center;">لوحة السيارة</th>
+                <th style="width: 12%; text-align: center;">أيام العمل</th>
+                <th style="width: 16%; text-align: center;">ساعات أساسية</th>
+                <th style="width: 16%; text-align: center;">ساعات إضافية</th>
+                <th style="width: 16%; text-align: center;">المسافة المقطوعة</th>
+                <th style="width: 15%; text-align: center; background-color: #cbd5e1;">إجمالي الساعات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${fleetRows}
+              <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 2px solid #0f172a;">
+                <td colspan="3" style="text-align: center; font-size: 12px;">الإجمالي العام لساعات ومسافات الأسطول</td>
+                <td style="text-align: center;">${totalWorkingDaysAll} يوم</td>
+                <td style="text-align: center;">${formatMinutes(grandBaseMinutes)}</td>
+                <td style="text-align: center; color: #b45309;">${formatMinutes(grandOvertimeMinutes)}</td>
+                <td style="text-align: center; color: #0284c7;">${grandDistanceKm.toFixed(1)} كم</td>
+                <td style="text-align: center; font-size: 13px; font-weight: 900; background-color: #e2e8f0; color: #0284c7;">${formatMinutes(grandTotalMinutes)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      const printArea = document.getElementById('dedicatedPrintArea');
+      printArea.innerHTML = allFleetPrintHtml;
+      window.print();
+    }
+  </script>
+</body>
+</html>
