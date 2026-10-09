@@ -75,6 +75,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
 
+  <!-- Header -->
   <header class="bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 sm:px-8 py-3 flex justify-between items-center sticky top-0 z-40">
     <div class="flex items-center gap-3">
       <img src="/logo.png" alt="Sawaqee Logo" class="w-10 h-10 object-contain rounded-xl drop-shadow">
@@ -101,7 +102,7 @@
 
   <main class="max-w-7xl mx-auto p-4 sm:p-6">
 
-    <!-- شاشة الدخول السريعة -->
+    <!-- شاشة الدخول -->
     <div id="loginSection" class="max-w-md mx-auto mt-6 sm:mt-10 bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-2xl relative text-center">
       <div class="mb-5">
         <img src="/logo.png" alt="Sawaqee" class="w-32 h-32 sm:w-36 sm:h-36 object-contain mx-auto drop-shadow-xl">
@@ -233,7 +234,7 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- لوحة حالة الأسطول والنشاط الميداني المحدثة بالثواني اللحظية -->
+        <!-- متابعة حالة الأسطول بالثواني الحية -->
         <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4 flex flex-col h-[550px]">
           <div class="flex justify-between items-center border-b border-slate-800 pb-3">
             <div class="flex items-center gap-2">
@@ -329,6 +330,7 @@
 
   </main>
 
+  <!-- مودال السائق واللوحة -->
   <div id="driverModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
     <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative space-y-5 my-8">
       
@@ -395,7 +397,7 @@
     let currentUser = null;
     let activeShift = null;
     let timerInterval = null;
-    let adminLiveSecondsTicker = null; // مؤقت الثواني المباشر لشاشات الأدمن
+    let adminLiveSecondsTicker = null;
     let isActionLocked = false;
     let map = null;
     let markers = {};
@@ -405,8 +407,6 @@
     let currentLang = 'ar';
     let driversMemory = [];
     let systemMaxSpeed = 90;
-    
-    // ذاكرة السائقين النشطين لحساب الثواني الحية لهم في لوحة الأدمن
     let activeDriversCache = [];
 
     let lastReportData = null;
@@ -993,7 +993,6 @@
       });
     }
 
-    // تهيئة لوحة الأدمن مع تفعيل عداد الثواني الحي المستمر
     function setupAdminView() {
       document.getElementById('adminSection').classList.remove('hidden');
       if (!map) {
@@ -1002,18 +1001,15 @@
       }
       loadAdminData();
 
-      // تشغيل عداد الثواني الحي للكروت الميدانية كل 1 ثانية بالضبط
       clearInterval(adminLiveSecondsTicker);
       adminLiveSecondsTicker = setInterval(() => {
         updateAdminCardsLiveTimer();
       }, 1000);
 
-      // بث لحظي فوري عند بدء السائق للشيفت
       socket.on('shift_started', () => {
         loadAdminData();
       });
 
-      // بث لحظي فوري عند إنهاء الشيفت
       socket.on('shift_ended', (data) => {
         loadAdminData();
         const repSelect = document.getElementById('reportDriverSelect');
@@ -1045,7 +1041,6 @@
       });
     }
 
-    // تحديث عدادات الثواني الحية لجميع السائقين النشطين في لوحة الأدمن
     function updateAdminCardsLiveTimer() {
       const now = new Date();
       activeDriversCache.forEach(d => {
@@ -1076,7 +1071,7 @@
         const isActive = (d.shift_status === 'active');
         if (isActive) {
           activeCount++;
-          activeDriversCache.push(d); // حفظ في الذاكرة لتحديث الثواني كل ثانية
+          activeDriversCache.push(d);
         }
 
         if (isActive) {
@@ -1089,7 +1084,7 @@
           const isOvertimeNow = totalEstimatedMinsToday > totalBaseRequiredMins;
           if (isOvertimeNow) overtimeCount++;
 
-          const isMoving = d.location && Number(d.location.speed) >= 4;
+          const isMoving = d.location && d.location.speed > 0;
           const isOverSpeed = d.location && d.location.isOverSpeed;
           const speedText = isMoving ? `⚡ ${d.location.speed} ${t('kmhUnit')}` : '';
           const distanceKm = d.location ? (d.location.distanceKm || 0).toFixed(1) : '0.0';
@@ -1108,7 +1103,7 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <h4 class="font-bold text-sm text-white">${d.username}</h4>
-                      <span id="admin_card_battery_${d.driver_id}" class="text-[10px] text-slate-400 font-mono">${batteryText}</span>
+                      ${batteryText ? `<span id="admin_card_battery_${d.driver_id}" class="text-[10px] text-slate-400 font-mono">${batteryText}</span>` : ''}
                     </div>
                     <span class="text-[11px] text-sky-400 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
                   </div>
@@ -1173,11 +1168,9 @@
       map = L.map('map', { zoomControl: true, attributionControl: false }).setView([24.7136, 46.6753], 12);
       currentTileLayer = L.tileLayer(getTileUrl('street'), { maxZoom: 20 }).addTo(map);
 
-      // استقبال تحديثات الـ GPS وتحديث الخريطة والكارت الجانبي معاً في نفس اللحظة
       socket.on('driver_location_changed', (data) => {
         updateMapMarker(data);
 
-        // تحديث الكارت الجانبي للأدمن فوراً (الكيلومترات والسرعة والبطارية ولون الباص)
         const kmEl = document.getElementById(`admin_card_km_${data.driverId}`);
         if (kmEl) kmEl.innerText = `(${(data.distanceKm || 0).toFixed(1)} كم)`;
 
@@ -1192,7 +1185,6 @@
         const battEl = document.getElementById(`admin_card_battery_${data.driverId}`);
         if (battEl && data.battery !== null) battEl.innerText = `🔋 ${data.battery}%`;
 
-        // إذا كان المفتوح هو شاشة السائق الحالي
         if (currentUser && currentUser.id === data.driverId) {
           const driverKm = document.getElementById('driverShiftKm');
           if (driverKm) driverKm.innerText = `${(data.distanceKm || 0).toFixed(1)} ${t('kmhUnit').replace('/س', '').replace('/h', '')}`;
