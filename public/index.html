@@ -1089,7 +1089,7 @@
           const isOvertimeNow = totalEstimatedMinsToday > totalBaseRequiredMins;
           if (isOvertimeNow) overtimeCount++;
 
-          const isMoving = d.location && d.location.speed > 0;
+          const isMoving = d.location && Number(d.location.speed) >= 4;
           const isOverSpeed = d.location && d.location.isOverSpeed;
           const speedText = isMoving ? `⚡ ${d.location.speed} ${t('kmhUnit')}` : '';
           const distanceKm = d.location ? (d.location.distanceKm || 0).toFixed(1) : '0.0';
