@@ -18,7 +18,7 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
 
 let systemMaxSpeed = 90;
 
-// حساب المسافة بين نقطتين بالكيلومتر عبر Haversine
+// حساب المسافة الدقيقة بين نقطتين بالكيلومتر عبر Haversine
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -81,7 +81,7 @@ db.serialize(() => {
 const liveLocations = {};
 const lastClosedShiftDetails = {};
 
-// جلب وتعديل السرعة القصوى
+// جلب وتعديل السرعة القصوى المحددة من الأدمن
 app.get('/api/settings/speed-limit', (req, res) => {
   res.json({ maxSpeed: systemMaxSpeed });
 });
@@ -202,7 +202,7 @@ app.delete('/api/drivers/:id', (req, res) => {
   });
 });
 
-// فحص الشيفت النشط
+// الشيفت النشط
 app.get('/api/shifts/active/:driverId', (req, res) => {
   const { driverId } = req.params;
   db.get(`SELECT * FROM shifts WHERE driver_id = ? AND status = 'active'`, [driverId], (err, shift) => {
@@ -211,7 +211,7 @@ app.get('/api/shifts/active/:driverId', (req, res) => {
   });
 });
 
-// بدء الشيفت مع بث لحظي فوري للأدمن
+// بدء الشيفت مع بث فوري للأدمن
 app.post('/api/shifts/start', (req, res) => {
   const { driverId } = req.body;
   const today = new Date().toISOString().split('T')[0];
@@ -253,7 +253,7 @@ app.post('/api/shifts/start', (req, res) => {
   });
 });
 
-// إنهاء الشيفت مع بث لحظي فوري للأدمن
+// إنهاء الشيفت وحفظ بيانات الإغلاق
 app.post('/api/shifts/end', (req, res) => {
   const { driverId } = req.body;
   const now = new Date();
@@ -323,7 +323,7 @@ app.get('/api/shifts/history/:driverId', (req, res) => {
   });
 });
 
-// تقرير ساعات العمل والكيلومترات التراكمية المباشرة
+// تقرير ساعات العمل المباشر والتراكمي
 app.get('/api/reports', (req, res) => {
   const { driverId, month } = req.query;
   if (!driverId || !month) return res.status(400).json({ error: 'driverId and month are required' });
@@ -406,7 +406,7 @@ app.get('/api/reports', (req, res) => {
   });
 });
 
-// جلب حالة الأسطول بالكامل (النشط + المنتهي مع تفاصيل آخر إغلاق)
+// حالة الأسطول الشاملة للأدمن
 app.get('/api/admin/active-drivers', (req, res) => {
   const today = new Date().toISOString().split('T')[0];
 
@@ -447,7 +447,7 @@ app.get('/api/admin/active-drivers', (req, res) => {
   });
 });
 
-// تتبع المواقع الحية والكيلومترات وتنبيهات السرعة
+// معالجة الـ GPS مع فلتر السرعة الذكي وتصفية الاهتزازات
 io.on('connection', (socket) => {
   socket.emit('initial_locations', liveLocations);
   socket.emit('speed_limit_changed', { maxSpeed: systemMaxSpeed });
@@ -455,7 +455,9 @@ io.on('connection', (socket) => {
   socket.on('update_location', (data) => {
     const { driverId, username, plateNumber, lat, lng, speed, battery } = data;
     if (driverId && lat && lng) {
-      const currentSpeed = Math.round(speed || 0);
+      // فلتر السرعة الذكي: أي سرعة أقل من 4 كم/س تُعتبر 0 (متوقف) لتفادي اهتزاز الـ GPS
+      const rawSpeed = Math.round(speed || 0);
+      const currentSpeed = rawSpeed >= 4 ? rawSpeed : 0;
       const isOverSpeed = currentSpeed > systemMaxSpeed;
 
       if (!liveLocations[driverId]) {
@@ -476,7 +478,8 @@ io.on('connection', (socket) => {
         const prev = liveLocations[driverId];
         const dist = calculateDistanceKm(prev.lat, prev.lng, lat, lng);
 
-        if (dist >= 0.015 && dist <= 3.0) {
+        // لا تحتسب الكيلومترات إلا إذا تحرك أكثر من 25 متراً وبسرعة قيادة حقيقية (>= 4 كم/س)
+        if (dist >= 0.025 && dist <= 3.0 && currentSpeed >= 4) {
           prev.distanceKm = Number(((prev.distanceKm || 0) + dist).toFixed(2));
           db.run(`UPDATE shifts SET distance_km = ? WHERE driver_id = ? AND status = 'active'`, [prev.distanceKm, driverId]);
         }
@@ -488,9 +491,12 @@ io.on('connection', (socket) => {
         if (battery !== undefined) prev.battery = battery;
         prev.updatedAt = new Date().toISOString();
 
-        if (!prev.trail) prev.trail = [];
-        prev.trail.push([lat, lng]);
-        if (prev.trail.length > 120) prev.trail.shift();
+        // رسم مسار السير فقط عند القيادة الحقيقية
+        if (currentSpeed >= 4) {
+          if (!prev.trail) prev.trail = [];
+          prev.trail.push([lat, lng]);
+          if (prev.trail.length > 120) prev.trail.shift();
+        }
       }
 
       io.emit('driver_location_changed', liveLocations[driverId]);
