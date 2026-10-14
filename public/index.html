@@ -88,7 +88,13 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-2.5">
+    <div class="flex items-center gap-2">
+      <!-- زر تغيير كلمة مرور الأدمن -->
+      <button id="adminChangePwdBtn" onclick="openAdminPasswordModal()" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 font-bold transition flex items-center gap-1.5">
+        <i class="fa-solid fa-key text-amber-400"></i>
+        <span data-i18n="changePasswordBtn">تغيير كلمة المرور</span>
+      </button>
+
       <button onclick="toggleLanguage()" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-400 px-3 py-1.5 rounded-xl border border-slate-700 font-bold transition flex items-center gap-1">
         <i class="fa-solid fa-globe"></i>
         <span id="langBtnText">English</span>
@@ -123,7 +129,7 @@
 
         <div>
           <label class="block text-xs font-bold text-slate-300 mb-1.5" data-i18n="passwordLabel">كلمة المرور</label>
-          <input type="password" id="loginPin" placeholder="••••••••" maxlength="12" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-center text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-600">
+          <input type="password" id="loginPin" placeholder="••••••••" maxlength="16" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-center text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-600">
         </div>
 
         <button type="submit" id="btnSubmitLogin" class="w-full bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white font-black py-3.5 rounded-xl shadow-lg shadow-sky-600/30 transition text-base" data-i18n="loginBtn">
@@ -234,24 +240,24 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- متابعة حالة الأسطول بالثواني الحية -->
+        <!-- قائمة حالة الأسطول -->
         <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4 flex flex-col h-[550px]">
           <div class="flex justify-between items-center border-b border-slate-800 pb-3">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <h3 class="font-bold text-sm text-slate-200" data-i18n="fleetStatusTitle">حالة السيارات</h3>
+              <h3 class="font-bold text-sm text-slate-200" data-i18n="fleetStatusTitle">حالة الأسطول والنشاط الميداني</h3>
             </div>
             <span class="text-xs text-slate-400 font-bold" id="activeDriversCountBadge">0 نشط</span>
           </div>
           <div id="activeDriversList" class="space-y-3 overflow-y-auto flex-1 pr-1"></div>
         </div>
 
-        <!-- خريطة التتبع -->
+        <!-- الخريطة -->
         <div id="mapWrapperCard" class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col h-[550px] overflow-hidden">
           <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <i class="fa-solid fa-map-location-dot text-sky-400"></i>
-              <h3 class="font-bold text-sm text-slate-200" data-i18n="liveMapTitle">خريطة التتبع</h3>
+              <h3 class="font-bold text-sm text-slate-200" data-i18n="liveMapTitle">خريطة التتبع الميداني المباشر</h3>
             </div>
             
             <div class="flex items-center gap-2 flex-wrap">
@@ -329,6 +335,41 @@
     </div>
 
   </main>
+
+  <!-- نافذة مودال تغيير كلمة مرور الأدمن -->
+  <div id="adminPasswordModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative space-y-4 text-right">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-key text-amber-400"></i>
+          <span>تغيير كلمة مرور الإدارة</span>
+        </h3>
+        <button onclick="closeAdminPasswordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="adminPwdMsg" class="hidden p-2.5 rounded-xl text-xs font-bold text-center"></div>
+
+      <form onsubmit="event.preventDefault(); submitAdminPasswordChange();" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">كلمة المرور الحالية</label>
+          <input type="password" id="adminCurrentPassword" required placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">كلمة المرور الجديدة</label>
+          <input type="password" id="adminNewPassword" required minlength="4" placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">تأكيد كلمة المرور الجديدة</label>
+          <input type="password" id="adminConfirmPassword" required minlength="4" placeholder="••••••••" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeAdminPasswordModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl font-bold transition">إلغاء</button>
+          <button type="submit" id="btnSaveAdminPwd" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white py-2 rounded-xl font-bold transition shadow-lg shadow-sky-600/30">حفظ</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- مودال السائق واللوحة -->
   <div id="driverModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
@@ -423,6 +464,7 @@
         brandArabic: 'سواقي',
         appSubtitle: 'نظام تتبع الأسطول وساعات العمل الميدانية',
         logout: 'خروج',
+        changePasswordBtn: 'تغيير كلمة المرور',
         selectUserLabel: 'اختر المستخدم',
         passwordLabel: 'كلمة المرور',
         loginBtn: 'دخول',
@@ -439,8 +481,8 @@
         activeBusesCount: 'الباصات النشطة الآن',
         overtimeShiftsCount: 'في شيفت إضافي حالياً',
         totalDriversCount: 'إجمالي السائقين',
-        fleetStatusTitle: 'حالة السيارات',
-        liveMapTitle: 'خريطة التتبع ',
+        fleetStatusTitle: 'حالة الأسطول والنشاط الميداني',
+        liveMapTitle: 'خريطة التتبع الميداني المباشر',
         maxSpeedLabel: 'السرعة القصوى:',
         kmhUnit: 'كم/س',
         saveBtn: 'حفظ',
@@ -463,6 +505,7 @@
         brandArabic: 'SAWAQI',
         appSubtitle: 'Fleet Tracking & Work Shift Dispatch System',
         logout: 'Logout',
+        changePasswordBtn: 'Change Password',
         selectUserLabel: 'Select User',
         passwordLabel: 'Password',
         loginBtn: 'Sign In',
@@ -592,8 +635,12 @@
           currentUser = JSON.parse(savedUser);
           document.getElementById('logoutBtn').classList.remove('hidden');
           document.getElementById('loginSection').classList.add('hidden');
-          if (currentUser.role === 'driver') setupDriverView();
-          else setupAdminView();
+          if (currentUser.role === 'driver') {
+            setupDriverView();
+          } else {
+            setupAdminView();
+            document.getElementById('adminChangePwdBtn').classList.remove('hidden');
+          }
         } catch(e) {
           localStorage.removeItem('sawaqi_user');
         }
@@ -705,8 +752,12 @@
         document.getElementById('logoutBtn').classList.remove('hidden');
         document.getElementById('loginSection').classList.add('hidden');
 
-        if (currentUser.role === 'driver') setupDriverView();
-        else setupAdminView();
+        if (currentUser.role === 'driver') {
+          setupDriverView();
+        } else {
+          setupAdminView();
+          document.getElementById('adminChangePwdBtn').classList.remove('hidden');
+        }
       } catch (err) {
         errorBox.innerText = err.message;
         errorBox.classList.remove('hidden');
@@ -725,10 +776,67 @@
       currentUser = null;
       activeShift = null;
       document.getElementById('logoutBtn').classList.add('hidden');
+      document.getElementById('adminChangePwdBtn').classList.add('hidden');
       document.getElementById('driverSection').classList.add('hidden');
       document.getElementById('adminSection').classList.add('hidden');
       document.getElementById('loginSection').classList.remove('hidden');
       document.getElementById('loginPin').value = '';
+    }
+
+    // دوال تغيير كلمة مرور الأدمن
+    function openAdminPasswordModal() {
+      document.getElementById('adminPasswordModal').classList.remove('hidden');
+      document.getElementById('adminCurrentPassword').value = '';
+      document.getElementById('adminNewPassword').value = '';
+      document.getElementById('adminConfirmPassword').value = '';
+      document.getElementById('adminPwdMsg').classList.add('hidden');
+    }
+
+    function closeAdminPasswordModal() {
+      document.getElementById('adminPasswordModal').classList.add('hidden');
+    }
+
+    async function submitAdminPasswordChange() {
+      const currentPin = document.getElementById('adminCurrentPassword').value.trim();
+      const newPin = document.getElementById('adminNewPassword').value.trim();
+      const confirmPin = document.getElementById('adminConfirmPassword').value.trim();
+      const msgBox = document.getElementById('adminPwdMsg');
+      const saveBtn = document.getElementById('btnSaveAdminPwd');
+
+      msgBox.classList.add('hidden');
+
+      if (newPin !== confirmPin) {
+        msgBox.innerText = currentLang === 'ar' ? 'كلمة المرور الجديدة غير متطابقة' : 'Passwords do not match';
+        msgBox.className = 'p-2.5 rounded-xl text-xs font-bold text-center bg-rose-500/10 border border-rose-500/30 text-rose-400';
+        msgBox.classList.remove('hidden');
+        return;
+      }
+
+      saveBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/admin/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPin, newPin })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        msgBox.innerText = currentLang === 'ar' ? 'تم تغيير كلمة المرور بنجاح!' : 'Password changed successfully!';
+        msgBox.className = 'p-2.5 rounded-xl text-xs font-bold text-center bg-emerald-500/10 border border-emerald-500/30 text-emerald-400';
+        msgBox.classList.remove('hidden');
+
+        setTimeout(() => {
+          closeAdminPasswordModal();
+        }, 1200);
+      } catch (err) {
+        msgBox.innerText = err.message;
+        msgBox.className = 'p-2.5 rounded-xl text-xs font-bold text-center bg-rose-500/10 border border-rose-500/30 text-rose-400';
+        msgBox.classList.remove('hidden');
+      } finally {
+        saveBtn.disabled = false;
+      }
     }
 
     async function setupDriverView() {
@@ -854,6 +962,7 @@
       document.getElementById('activeTimer').innerText = '00:00:00';
     }
 
+    // سجل الشيفتات المدمج والمباشر في شاشة السائق
     async function loadDriverHistory() {
       const res = await fetch(`/api/shifts/history/${currentUser.id}`);
       const list = await res.json();
@@ -921,7 +1030,7 @@
 
             <div class="text-left font-sans">
               <div class="font-bold text-sky-400 text-sm">${formatMinutes(duration)}</div>
-              <div class="text-[10px] text-slate-400 font-mono mt-0.5"> ${kmDisplay} ${t('kmhUnit').replace('/س', '').replace('/h', '')}</div>
+              <div class="text-[10px] text-slate-400 font-mono mt-0.5">📍 ${kmDisplay} ${t('kmhUnit').replace('/س', '').replace('/h', '')}</div>
             </div>
           </div>
         `;
@@ -1262,7 +1371,7 @@
       const popupHtml = `
         <div class="text-right p-1 font-sans">
           <div class="font-black text-sm text-slate-900">${displayName}</div>
-          ${vehiclePlate ? `<div class="text-xs text-sky-700 font-mono font-bold">لوحة: ${vehiclePlate}</div>` : ''}
+          ${vehiclePlate ? `<div class="text-xs text-sky-700 font-mono font-bold">${vehiclePlate}</div>` : ''}
           <div class="text-xs text-slate-700 my-1 font-bold">
             <div>${currentLang === 'ar' ? 'المسافة:' : 'Distance:'} ${kmDisplay} كم</div>
             <div>${currentLang === 'ar' ? 'الحالة:' : 'Status:'} ${isMoving ? `🚗 (${speed} كم/س)` : '🛑 متوقف'}</div>
@@ -1583,7 +1692,7 @@
 
               <div class="text-left font-sans">
                 <div class="font-bold text-sky-400 text-sm">${formatMinutes(day.totalMinutes)}</div>
-                <div class="text-[10px] text-slate-400 font-mono mt-0.5"> ${dayKm} كم</div>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5">📍 ${dayKm} كم</div>
               </div>
             </div>
           `;
