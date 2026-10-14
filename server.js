@@ -72,9 +72,14 @@ async function initDatabase() {
           plate_number VARCHAR(100),
           phone VARCHAR(50),
           daily_base_hours NUMERIC DEFAULT 8,
+          last_lat NUMERIC,
+          last_lng NUMERIC,
           is_active INTEGER DEFAULT 1
         );
       `);
+
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_lat NUMERIC;`);
+      await dbQuery(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_lng NUMERIC;`);
 
       await dbQuery(`
         CREATE TABLE IF NOT EXISTS shifts (
@@ -108,10 +113,13 @@ async function initDatabase() {
           plate_number TEXT,
           phone TEXT,
           daily_base_hours REAL DEFAULT 8,
+          last_lat REAL,
+          last_lng REAL,
           is_active INTEGER DEFAULT 1
         )`);
         sqliteDb.run(`ALTER TABLE users ADD COLUMN plate_number TEXT`, () => {});
-        sqliteDb.run(`UPDATE users SET username = 'admin', pin_code = '1234' WHERE id = 1 OR username = 'owner'`, () => {});
+        sqliteDb.run(`ALTER TABLE users ADD COLUMN last_lat REAL`, () => {});
+        sqliteDb.run(`ALTER TABLE users ADD COLUMN last_lng REAL`, () => {});
 
         sqliteDb.run(`CREATE TABLE IF NOT EXISTS shifts (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,13 +135,12 @@ async function initDatabase() {
           applied_daily_base_hours REAL NOT NULL,
           status TEXT DEFAULT 'active'
         )`);
-        sqliteDb.run(`ALTER TABLE shifts ADD COLUMN distance_km REAL DEFAULT 0`, () => {});
 
         sqliteDb.run(`INSERT OR IGNORE INTO users (id, username, pin_code, role, plate_number, phone, daily_base_hours, is_active)
                       VALUES (1, 'admin', '1234', 'owner', 'إدارة', '0500000000', 8, 1)`);
       });
     }
-    console.log('Database initialized successfully.');
+    console.log('Database initialized successfully with persistent GPS coordinates.');
   } catch (err) {
     console.error('Database Init Error:', err);
   }
@@ -181,7 +188,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// تغيير كلمة المرور للأدمن
 app.post('/api/admin/change-password', async (req, res) => {
   const currentPin = String(req.body.currentPin || '').trim();
   const newPin = String(req.body.newPin || '').trim();
@@ -292,7 +298,7 @@ app.post('/api/shifts/start', async (req, res) => {
     const countRow = await dbQuery(`SELECT COUNT(*) as count FROM shifts WHERE driver_id = ? AND shift_date = ?`, [driverId, today]);
     const isFirst = (Number(countRow.rows[0].count) === 0) ? 1 : 0;
 
-    const driverRes = await dbQuery(`SELECT daily_base_hours, username, plate_number FROM users WHERE id = ?`, [driverId]);
+    const driverRes = await dbQuery(`SELECT daily_base_hours, username, plate_number, last_lat, last_lng FROM users WHERE id = ?`, [driverId]);
     const driver = driverRes.rows[0] || { daily_base_hours: 8, username: 'driver' };
     const baseHours = driver.daily_base_hours || 8;
 
@@ -301,13 +307,25 @@ app.post('/api/shifts/start', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, 0, 'active')
     `, [driverId, today, now, isFirst, baseHours]);
 
-    if (liveLocations[driverId]) {
-      liveLocations[driverId].distanceKm = 0;
-      liveLocations[driverId].trail = [];
+    // إذا كان للسائق موقع قديم مسجل، نفعله فوراً في الذاكرة الحية
+    if (driver.last_lat && driver.last_lng) {
+      liveLocations[driverId] = {
+        driverId: Number(driverId),
+        username: driver.username,
+        plateNumber: driver.plate_number || '',
+        lat: Number(driver.last_lat),
+        lng: Number(driver.last_lng),
+        speed: 0,
+        battery: null,
+        distanceKm: 0,
+        trail: [[Number(driver.last_lat), Number(driver.last_lng)]],
+        isOverSpeed: false,
+        updatedAt: now
+      };
     }
 
     io.emit('shift_started', {
-      driverId,
+      driverId: Number(driverId),
       username: driver.username,
       plateNumber: driver.plate_number || '',
       startTime: now
@@ -360,9 +378,9 @@ app.post('/api/shifts/end', async (req, res) => {
 
     delete liveLocations[driverId];
 
-    io.emit('driver_stopped', { driverId });
+    io.emit('driver_stopped', { driverId: Number(driverId) });
     io.emit('shift_ended', {
-      driverId,
+      driverId: Number(driverId),
       durationMinutes,
       baseMinutes: shiftBaseMinutes,
       overtimeMinutes: shiftOvertimeMinutes,
@@ -480,11 +498,11 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
-// استعلام حالة الأسطول المعالج برمجياً (مستقر 100% مع Neon و PostgreSQL بدون أي خطأ)
+// استعلام حالة الأسطول مع استرجاع آخر موقع محفوظ للسائق حتى لا يختفي الباص نهائياً
 app.get('/api/admin/active-drivers', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   try {
-    const usersRes = await dbQuery(`SELECT id, username, plate_number, phone, daily_base_hours FROM users WHERE role = 'driver' ORDER BY id ASC`);
+    const usersRes = await dbQuery(`SELECT id, username, plate_number, phone, daily_base_hours, last_lat, last_lng FROM users WHERE role = 'driver' ORDER BY id ASC`);
     const drivers = usersRes.rows || [];
 
     const shiftsRes = await dbQuery(`SELECT * FROM shifts ORDER BY id DESC LIMIT 300`);
@@ -498,6 +516,22 @@ app.get('/api/admin/active-drivers', async (req, res) => {
       const todayCompletedBase = driverShifts
         .filter(s => s.shift_date === today && s.status === 'completed')
         .reduce((sum, s) => sum + Number(s.base_minutes || 0), 0);
+
+      // تحديد موقع السائق: المباشر إن وجد، أو آخر موقع مسجل له في السحابة
+      let loc = liveLocations[u.id] || liveLocations[Number(u.id)] || null;
+      if (!loc && u.last_lat && u.last_lng) {
+        loc = {
+          driverId: u.id,
+          username: u.username,
+          plateNumber: u.plate_number || '',
+          lat: Number(u.last_lat),
+          lng: Number(u.last_lng),
+          speed: 0,
+          battery: null,
+          distanceKm: activeShift ? Number(activeShift.distance_km || 0) : (latestShift ? Number(latestShift.distance_km || 0) : 0),
+          isFallback: true
+        };
+      }
 
       return {
         driver_id: u.id,
@@ -513,7 +547,7 @@ app.get('/api/admin/active-drivers', async (req, res) => {
         duration_minutes: activeShift ? Number(activeShift.duration_minutes || 0) : (latestShift ? Number(latestShift.duration_minutes || 0) : 0),
         distance_km: activeShift ? Number(activeShift.distance_km || 0) : (latestShift ? Number(latestShift.distance_km || 0) : 0),
         completed_base_minutes_today: todayCompletedBase,
-        location: liveLocations[u.id] || null,
+        location: loc,
         lastClosed: lastClosedShiftDetails[u.id] || null
       };
     });
@@ -525,7 +559,7 @@ app.get('/api/admin/active-drivers', async (req, res) => {
   }
 });
 
-// معالجة وبث المواقع الحية
+// معالجة وبث المواقع وحفظ آخر موقع في سحابة Neon الدائمة
 io.on('connection', (socket) => {
   socket.emit('initial_locations', liveLocations);
   socket.emit('speed_limit_changed', { maxSpeed: systemMaxSpeed });
@@ -536,34 +570,40 @@ io.on('connection', (socket) => {
       const rawSpeed = Math.round(speed || 0);
       const currentSpeed = rawSpeed >= 4 ? rawSpeed : 0;
       const isOverSpeed = currentSpeed > systemMaxSpeed;
+      const idKey = Number(driverId);
 
-      if (!liveLocations[driverId]) {
-        liveLocations[driverId] = {
-          driverId,
+      // حفظ الإحداثيات في قاعدة البيانات الدائمة
+      try {
+        await dbQuery(`UPDATE users SET last_lat = ?, last_lng = ? WHERE id = ?`, [lat, lng, idKey]);
+      } catch(e) {}
+
+      if (!liveLocations[idKey]) {
+        liveLocations[idKey] = {
+          driverId: idKey,
           username: username || '',
           plateNumber: plateNumber || '',
-          lat,
-          lng,
+          lat: Number(lat),
+          lng: Number(lng),
           speed: currentSpeed,
           battery: battery !== undefined ? battery : null,
           distanceKm: 0,
-          trail: [[lat, lng]],
+          trail: [[Number(lat), Number(lng)]],
           isOverSpeed,
           updatedAt: new Date().toISOString()
         };
       } else {
-        const prev = liveLocations[driverId];
+        const prev = liveLocations[idKey];
         const dist = calculateDistanceKm(prev.lat, prev.lng, lat, lng);
 
         if (dist >= 0.025 && dist <= 3.0 && currentSpeed >= 4) {
           prev.distanceKm = Number(((prev.distanceKm || 0) + dist).toFixed(2));
           try {
-            await dbQuery(`UPDATE shifts SET distance_km = ? WHERE driver_id = ? AND status = 'active'`, [prev.distanceKm, driverId]);
+            await dbQuery(`UPDATE shifts SET distance_km = ? WHERE driver_id = ? AND status = 'active'`, [prev.distanceKm, idKey]);
           } catch(e) {}
         }
 
-        prev.lat = lat;
-        prev.lng = lng;
+        prev.lat = Number(lat);
+        prev.lng = Number(lng);
         prev.speed = currentSpeed;
         prev.isOverSpeed = isOverSpeed;
         if (battery !== undefined) prev.battery = battery;
@@ -571,18 +611,18 @@ io.on('connection', (socket) => {
 
         if (currentSpeed >= 4) {
           if (!prev.trail) prev.trail = [];
-          prev.trail.push([lat, lng]);
+          prev.trail.push([Number(lat), Number(lng)]);
           if (prev.trail.length > 120) prev.trail.shift();
         }
       }
 
-      io.emit('driver_location_changed', liveLocations[driverId]);
+      io.emit('driver_location_changed', liveLocations[idKey]);
 
       if (isOverSpeed) {
         io.emit('speed_violation_alert', {
-          driverId,
-          username: username || liveLocations[driverId].username,
-          plateNumber: plateNumber || liveLocations[driverId].plateNumber,
+          driverId: idKey,
+          username: username || liveLocations[idKey].username,
+          plateNumber: plateNumber || liveLocations[idKey].plateNumber,
           speed: currentSpeed,
           maxSpeed: systemMaxSpeed
         });
@@ -593,5 +633,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port: ${PORT}`);
+  console.log(`Server running smoothly on port: ${PORT}`);
 });
