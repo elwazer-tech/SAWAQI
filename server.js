@@ -94,7 +94,6 @@ async function initDatabase() {
         );
       `);
 
-      // تثبيت حساب الأدمن فقط
       await dbQuery(`
         INSERT INTO users (username, pin_code, role, plate_number, phone, daily_base_hours, is_active)
         VALUES ('admin', '1234', 'owner', 'إدارة', '0500000000', 8, 1)
@@ -146,6 +145,7 @@ initDatabase();
 const liveLocations = {};
 const lastClosedShiftDetails = {};
 
+// جلب وتعديل السرعة القصوى
 app.get('/api/settings/speed-limit', (req, res) => {
   res.json({ maxSpeed: systemMaxSpeed });
 });
@@ -160,6 +160,7 @@ app.post('/api/settings/speed-limit', (req, res) => {
   res.status(400).json({ error: 'قيمة سرعة غير صالحة' });
 });
 
+// تسجيل الدخول
 app.post('/api/login', async (req, res) => {
   const username = String(req.body.username || '').trim();
   const pin_code = String(req.body.pin_code || '').trim();
@@ -183,6 +184,34 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// تغيير كلمة المرور للأدمن
+app.post('/api/admin/change-password', async (req, res) => {
+  const currentPin = String(req.body.currentPin || '').trim();
+  const newPin = String(req.body.newPin || '').trim();
+
+  if (!newPin || newPin.length < 4) {
+    return res.status(400).json({ error: 'كلمة المرور الجديدة يجب أن تكون 4 خانات على الأقل' });
+  }
+
+  try {
+    const query = `SELECT * FROM users WHERE (username = 'admin' OR role = 'owner') AND is_active = 1`;
+    const result = await dbQuery(query);
+    const adminUser = result.rows[0];
+
+    if (!adminUser) return res.status(404).json({ error: 'حساب الأدمن غير موجود' });
+
+    if (String(adminUser.pin_code).trim() !== currentPin) {
+      return res.status(401).json({ error: 'كلمة المرور الحالية غير صحيحة' });
+    }
+
+    await dbQuery(`UPDATE users SET pin_code = ? WHERE id = ?`, [newPin, adminUser.id]);
+    res.json({ success: true, message: 'تم تغيير كلمة المرور بنجاح' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// قائمة السائقين
 app.get('/api/drivers', async (req, res) => {
   try {
     const result = await dbQuery(`SELECT id, username, plate_number, phone, daily_base_hours, is_active FROM users WHERE role = 'driver' ORDER BY id ASC`);
@@ -192,6 +221,7 @@ app.get('/api/drivers', async (req, res) => {
   }
 });
 
+// إضافة سائق
 app.post('/api/drivers', async (req, res) => {
   const { username, plate_number, pin_code, phone, daily_base_hours } = req.body;
   const user = String(username || '').trim();
@@ -210,6 +240,7 @@ app.post('/api/drivers', async (req, res) => {
   }
 });
 
+// تعديل سائق
 app.put('/api/drivers/:id', async (req, res) => {
   const { id } = req.params;
   const { username, plate_number, pin_code, phone, daily_base_hours } = req.body;
@@ -234,6 +265,7 @@ app.put('/api/drivers/:id', async (req, res) => {
   }
 });
 
+// حذف سائق
 app.delete('/api/drivers/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -245,6 +277,7 @@ app.delete('/api/drivers/:id', async (req, res) => {
   }
 });
 
+// فحص الشيفت النشط
 app.get('/api/shifts/active/:driverId', async (req, res) => {
   const { driverId } = req.params;
   try {
@@ -255,6 +288,7 @@ app.get('/api/shifts/active/:driverId', async (req, res) => {
   }
 });
 
+// بدء الشيفت
 app.post('/api/shifts/start', async (req, res) => {
   const { driverId } = req.body;
   const today = new Date().toISOString().split('T')[0];
@@ -294,6 +328,7 @@ app.post('/api/shifts/start', async (req, res) => {
   }
 });
 
+// إنهاء الشيفت
 app.post('/api/shifts/end', async (req, res) => {
   const { driverId } = req.body;
   const now = new Date();
@@ -357,6 +392,7 @@ app.post('/api/shifts/end', async (req, res) => {
   }
 });
 
+// سجل الشيفتات
 app.get('/api/shifts/history/:driverId', async (req, res) => {
   const { driverId } = req.params;
   try {
@@ -367,6 +403,7 @@ app.get('/api/shifts/history/:driverId', async (req, res) => {
   }
 });
 
+// تقرير ساعات العمل والكيلومترات التراكمية
 app.get('/api/reports', async (req, res) => {
   const { driverId, month } = req.query;
   if (!driverId || !month) return res.status(400).json({ error: 'driverId and month are required' });
@@ -455,6 +492,7 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
+// جلب حالة الأسطول بالكامل للأدمن
 app.get('/api/admin/active-drivers', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   try {
@@ -496,6 +534,7 @@ app.get('/api/admin/active-drivers', async (req, res) => {
   }
 });
 
+// بث المواقع وتنبيهات السرعة
 io.on('connection', (socket) => {
   socket.emit('initial_locations', liveLocations);
   socket.emit('speed_limit_changed', { maxSpeed: systemMaxSpeed });
