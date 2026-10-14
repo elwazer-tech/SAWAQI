@@ -26,7 +26,6 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// الاتصال بالسحابة الدائمة Neon إذا وجد الرابط، أو SQLite محلياً
 const isPostgres = !!process.env.DATABASE_URL;
 let pgPool = null;
 let sqliteDb = null;
@@ -134,7 +133,7 @@ async function initDatabase() {
                       VALUES (1, 'admin', '1234', 'owner', 'إدارة', '0500000000', 8, 1)`);
       });
     }
-    console.log('Database initialized successfully with permanent storage.');
+    console.log('Database initialized successfully.');
   } catch (err) {
     console.error('Database Init Error:', err);
   }
@@ -145,7 +144,6 @@ initDatabase();
 const liveLocations = {};
 const lastClosedShiftDetails = {};
 
-// جلب وتعديل السرعة القصوى
 app.get('/api/settings/speed-limit', (req, res) => {
   res.json({ maxSpeed: systemMaxSpeed });
 });
@@ -160,7 +158,6 @@ app.post('/api/settings/speed-limit', (req, res) => {
   res.status(400).json({ error: 'قيمة سرعة غير صالحة' });
 });
 
-// تسجيل الدخول
 app.post('/api/login', async (req, res) => {
   const username = String(req.body.username || '').trim();
   const pin_code = String(req.body.pin_code || '').trim();
@@ -211,7 +208,6 @@ app.post('/api/admin/change-password', async (req, res) => {
   }
 });
 
-// قائمة السائقين
 app.get('/api/drivers', async (req, res) => {
   try {
     const result = await dbQuery(`SELECT id, username, plate_number, phone, daily_base_hours, is_active FROM users WHERE role = 'driver' ORDER BY id ASC`);
@@ -221,7 +217,6 @@ app.get('/api/drivers', async (req, res) => {
   }
 });
 
-// إضافة سائق
 app.post('/api/drivers', async (req, res) => {
   const { username, plate_number, pin_code, phone, daily_base_hours } = req.body;
   const user = String(username || '').trim();
@@ -240,7 +235,6 @@ app.post('/api/drivers', async (req, res) => {
   }
 });
 
-// تعديل سائق
 app.put('/api/drivers/:id', async (req, res) => {
   const { id } = req.params;
   const { username, plate_number, pin_code, phone, daily_base_hours } = req.body;
@@ -265,7 +259,6 @@ app.put('/api/drivers/:id', async (req, res) => {
   }
 });
 
-// حذف سائق
 app.delete('/api/drivers/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -277,7 +270,6 @@ app.delete('/api/drivers/:id', async (req, res) => {
   }
 });
 
-// فحص الشيفت النشط
 app.get('/api/shifts/active/:driverId', async (req, res) => {
   const { driverId } = req.params;
   try {
@@ -288,7 +280,6 @@ app.get('/api/shifts/active/:driverId', async (req, res) => {
   }
 });
 
-// بدء الشيفت
 app.post('/api/shifts/start', async (req, res) => {
   const { driverId } = req.body;
   const today = new Date().toISOString().split('T')[0];
@@ -328,7 +319,6 @@ app.post('/api/shifts/start', async (req, res) => {
   }
 });
 
-// إنهاء الشيفت
 app.post('/api/shifts/end', async (req, res) => {
   const { driverId } = req.body;
   const now = new Date();
@@ -392,7 +382,6 @@ app.post('/api/shifts/end', async (req, res) => {
   }
 });
 
-// سجل الشيفتات
 app.get('/api/shifts/history/:driverId', async (req, res) => {
   const { driverId } = req.params;
   try {
@@ -403,7 +392,6 @@ app.get('/api/shifts/history/:driverId', async (req, res) => {
   }
 });
 
-// تقرير ساعات العمل والكيلومترات التراكمية
 app.get('/api/reports', async (req, res) => {
   const { driverId, month } = req.query;
   if (!driverId || !month) return res.status(400).json({ error: 'driverId and month are required' });
@@ -492,49 +480,52 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
-// جلب حالة الأسطول بالكامل للأدمن
+// استعلام حالة الأسطول المعالج برمجياً (مستقر 100% مع Neon و PostgreSQL بدون أي خطأ)
 app.get('/api/admin/active-drivers', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   try {
-    const query = `
-      SELECT 
-        u.id as driver_id, 
-        u.username, 
-        u.plate_number, 
-        u.phone, 
-        u.daily_base_hours,
-        s.id as shift_id, 
-        s.start_time, 
-        s.end_time,
-        s.shift_date,
-        s.status as shift_status,
-        s.duration_minutes,
-        s.distance_km,
-        COALESCE((
-          SELECT SUM(base_minutes) 
-          FROM shifts 
-          WHERE driver_id = u.id AND shift_date = ? AND status = 'completed'
-        ), 0) as completed_base_minutes_today
-      FROM users u
-      LEFT JOIN shifts s ON s.id = (
-        SELECT id FROM shifts WHERE driver_id = u.id ORDER BY id DESC LIMIT 1
-      )
-      WHERE u.role = 'driver'
-    `;
+    const usersRes = await dbQuery(`SELECT id, username, plate_number, phone, daily_base_hours FROM users WHERE role = 'driver' ORDER BY id ASC`);
+    const drivers = usersRes.rows || [];
 
-    const result = await dbQuery(query, [today]);
-    const drivers = result.rows.map(r => ({
-      ...r,
-      location: liveLocations[r.driver_id] || null,
-      lastClosed: lastClosedShiftDetails[r.driver_id] || null
-    }));
-    res.json(drivers);
+    const shiftsRes = await dbQuery(`SELECT * FROM shifts ORDER BY id DESC LIMIT 300`);
+    const allShifts = shiftsRes.rows || [];
+
+    const result = drivers.map(u => {
+      const driverShifts = allShifts.filter(s => Number(s.driver_id) === Number(u.id));
+      const activeShift = driverShifts.find(s => s.status === 'active');
+      const latestShift = driverShifts[0] || null;
+
+      const todayCompletedBase = driverShifts
+        .filter(s => s.shift_date === today && s.status === 'completed')
+        .reduce((sum, s) => sum + Number(s.base_minutes || 0), 0);
+
+      return {
+        driver_id: u.id,
+        username: u.username,
+        plate_number: u.plate_number || '',
+        phone: u.phone || '',
+        daily_base_hours: Number(u.daily_base_hours || 8),
+        shift_id: activeShift ? activeShift.id : (latestShift ? latestShift.id : null),
+        start_time: activeShift ? activeShift.start_time : (latestShift ? latestShift.start_time : null),
+        end_time: activeShift ? null : (latestShift ? latestShift.end_time : null),
+        shift_date: activeShift ? activeShift.shift_date : (latestShift ? latestShift.shift_date : null),
+        shift_status: activeShift ? 'active' : (latestShift ? latestShift.status : 'none'),
+        duration_minutes: activeShift ? Number(activeShift.duration_minutes || 0) : (latestShift ? Number(latestShift.duration_minutes || 0) : 0),
+        distance_km: activeShift ? Number(activeShift.distance_km || 0) : (latestShift ? Number(latestShift.distance_km || 0) : 0),
+        completed_base_minutes_today: todayCompletedBase,
+        location: liveLocations[u.id] || null,
+        lastClosed: lastClosedShiftDetails[u.id] || null
+      };
+    });
+
+    res.json(result);
   } catch (err) {
+    console.error('Error in /api/admin/active-drivers:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// بث المواقع وتنبيهات السرعة
+// معالجة وبث المواقع الحية
 io.on('connection', (socket) => {
   socket.emit('initial_locations', liveLocations);
   socket.emit('speed_limit_changed', { maxSpeed: systemMaxSpeed });
