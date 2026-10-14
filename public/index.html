@@ -84,7 +84,7 @@
           <h1 class="text-lg font-black tracking-wide text-white">SAWAQI</h1>
           <span class="text-xs text-sky-400 font-bold" data-i18n="brandArabic">سواقي</span>
         </div>
-        <p class="text-[11px] text-slate-400 font-medium">نظام تتبع الأسطول وساعات العمل الميدانية</p>
+        <p class="text-[11px] text-slate-400 font-medium" data-i18n="appSubtitle">نظام تتبع الأسطول وساعات العمل الميدانية</p>
       </div>
     </div>
 
@@ -117,7 +117,7 @@
 
       <form onsubmit="event.preventDefault(); handleLogin();" class="space-y-4 text-right">
         <div>
-          <label class="block text-xs font-bold text-slate-300 mb-1.5">اختر المستخدم</label>
+          <label class="block text-xs font-bold text-slate-300 mb-1.5" data-i18n="selectUserLabel">اختر المستخدم</label>
           <div class="relative">
             <select id="loginUserSelect" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl p-3.5 text-sm font-semibold appearance-none focus:outline-none focus:ring-2 focus:ring-sky-500">
               <option value="admin">admin</option>
@@ -127,8 +127,8 @@
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-300 mb-1.5">كلمة المرور</label>
-          <input type="password" id="loginPin" placeholder="••••••••" maxlength="12" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-center text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-600">
+          <label class="block text-xs font-bold text-slate-300 mb-1.5" data-i18n="passwordLabel">كلمة المرور</label>
+          <input type="password" id="loginPin" placeholder="••••••••" maxlength="16" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-center text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-600">
         </div>
 
         <button type="submit" id="btnSubmitLogin" class="w-full bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white font-black py-3.5 rounded-xl shadow-lg shadow-sky-600/30 transition text-base">
@@ -141,43 +141,43 @@
     <div id="driverSection" class="hidden max-w-lg mx-auto space-y-5">
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl flex justify-between items-center">
         <div>
-          <span class="text-xs text-slate-400">السائق</span>
+          <span class="text-xs text-slate-400" data-i18n="driverLabel">السائق</span>
           <h3 id="driverNameDisplay" class="text-xl font-black text-sky-400 mt-0.5">--</h3>
           <div id="driverPlateDisplay" class="text-xs font-mono text-slate-400 mt-0.5">--</div>
         </div>
         <div id="gpsStatusBadge" class="text-xs px-3.5 py-1.5 rounded-xl font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-2">
           <i class="fa-solid fa-satellite-dish"></i>
-          <span id="gpsStatusText">جاري البحث عن GPS...</span>
+          <span id="gpsStatusText" data-i18n="gpsSearching">جاري البحث عن GPS...</span>
         </div>
       </div>
 
       <div class="bg-gradient-to-b from-slate-900 to-slate-900/90 border border-slate-800 p-7 rounded-3xl text-center shadow-xl space-y-5">
         <div class="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2">
           <span class="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
-          <span>عداد وقت الشيفت الحالي</span>
+          <span data-i18n="shiftTimerHeader">عداد وقت الشيفت الحالي</span>
         </div>
         <div id="activeTimer" class="text-6xl font-mono font-black text-white tracking-tight drop-shadow-md">00:00:00</div>
 
         <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 inline-flex items-center gap-2 text-xs font-bold text-sky-400">
           <i class="fa-solid fa-route text-sky-400"></i>
-          <span>المسافة المقطوعة بالشيفت:</span>
+          <span data-i18n="distanceTraveledLabel">المسافة المقطوعة بالشيفت:</span>
           <span id="driverShiftKm" class="font-mono text-white text-sm">0.0 كم</span>
         </div>
 
         <button id="shiftActionBtn" onclick="toggleShift()" class="w-full text-lg font-black py-4.5 rounded-2xl shadow-xl transition-all duration-300 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30">
           <i class="fa-solid fa-key"></i>
-          <span>استلام الباص (بدء الشيفت)</span>
+          <span data-i18n="startShift">استلام الباص (بدء الشيفت)</span>
         </button>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-center">
-          <span class="text-xs font-semibold text-slate-400">ساعات أساسية (اليوم)</span>
+          <span class="text-xs font-semibold text-slate-400" data-i18n="baseHoursToday">ساعات أساسية (اليوم)</span>
           <div id="driverDailyBase" class="text-2xl font-black text-sky-400 mt-1">0س 0د</div>
           <div id="remainingBaseInfo" class="text-[10px] text-slate-400 mt-1">--</div>
         </div>
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-center">
-          <span class="text-xs font-semibold text-slate-400">ساعات إضافية (اليوم)</span>
+          <span class="text-xs font-semibold text-slate-400" data-i18n="overtimeHoursToday">ساعات إضافية (اليوم)</span>
           <div id="driverDailyOvertime" class="text-2xl font-black text-amber-400 mt-1">0س 0د</div>
         </div>
       </div>
@@ -186,7 +186,7 @@
         <div class="flex justify-between items-center">
           <h4 class="font-bold text-sm text-slate-200 flex items-center gap-2">
             <i class="fa-solid fa-clock-rotate-left text-sky-400"></i>
-            <span>سجل الشيفتات المنجزة</span>
+            <span data-i18n="shiftHistoryTitle">سجل الشيفتات المنجزة</span>
           </h4>
           <span class="text-[11px] text-slate-400" id="driverHistoryTotalShifts">--</span>
         </div>
@@ -211,7 +211,7 @@
             <i class="fa-solid fa-bus"></i>
           </div>
           <div>
-            <div class="text-xs text-slate-400 font-bold">الباصات النشطة الآن</div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="activeBusesCount">الباصات النشطة الآن</div>
             <div id="activeDriversCount" class="text-2xl font-black text-white mt-0.5">0</div>
           </div>
         </div>
@@ -221,7 +221,7 @@
             <i class="fa-solid fa-bolt"></i>
           </div>
           <div>
-            <div class="text-xs text-slate-400 font-bold">في شيفت إضافي حالياً</div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="overtimeShiftsCount">في شيفت إضافي حالياً</div>
             <div id="overtimeShiftsCount" class="text-2xl font-black text-white mt-0.5">0</div>
           </div>
         </div>
@@ -231,7 +231,7 @@
             <i class="fa-solid fa-users"></i>
           </div>
           <div>
-            <div class="text-xs text-slate-400 font-bold">إجمالي السائقين</div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="totalDriversCount">إجمالي السائقين</div>
             <div id="totalDriversCount" class="text-2xl font-black text-white mt-0.5">0</div>
           </div>
         </div>
@@ -244,19 +244,19 @@
           <div class="flex justify-between items-center border-b border-slate-800 pb-3">
             <div class="flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <h3 class="font-bold text-sm text-slate-200">حالة الأسطول والنشاط الميداني</h3>
+              <h3 class="font-bold text-sm text-slate-200" data-i18n="fleetStatusTitle">حالة الأسطول والنشاط الميداني</h3>
             </div>
             <span class="text-xs text-slate-400 font-bold" id="activeDriversCountBadge">0 نشط</span>
           </div>
           <div id="activeDriversList" class="space-y-3 overflow-y-auto flex-1 pr-1"></div>
         </div>
 
-        <!-- خريطة التتبع مع عرض موقع الأدمن والخط الواصل -->
+        <!-- خريطة التتبع مع زر موقعي وخط المسافة -->
         <div id="mapWrapperCard" class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col h-[550px] overflow-hidden">
           <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <i class="fa-solid fa-map-location-dot text-sky-400"></i>
-              <h3 class="font-bold text-sm text-slate-200">خريطة التتبع الميداني المباشر</h3>
+              <h3 class="font-bold text-sm text-slate-200" data-i18n="liveMapTitle">خريطة التتبع الميداني المباشر</h3>
             </div>
             
             <div class="flex items-center gap-2 flex-wrap">
@@ -452,7 +452,7 @@
     let systemMaxSpeed = 90;
     let activeDriversCache = [];
 
-    // تتبع موقع الأدمن والخط الواصل بينه وبين السائق
+    // تتبع موقع الأدمن الشخصي والخط الواصل
     let adminLocation = null;
     let adminMarker = null;
     let adminToDriverLine = null;
@@ -470,7 +470,7 @@
     function formatMinutes(mins) {
       const h = Math.floor(mins / 60);
       const m = Math.round(mins % 60);
-      return currentLang === 'ar' ? `${h}س ${m}د` : `${h}h ${m}m`;
+      return `${h}س ${m}د`;
     }
 
     function formatSecondsToTimer(diffSeconds) {
@@ -493,9 +493,8 @@
     }
 
     function getTileUrl(type) {
-      const hl = currentLang === 'ar' ? 'ar' : 'en';
-      if (type === 'satellite') return `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=${hl}`;
-      return `https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=${hl}`;
+      if (type === 'satellite') return `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=ar`;
+      return `https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=ar`;
     }
 
     function reloadMapTileWithLanguage() {
@@ -504,7 +503,6 @@
       currentTileLayer = L.tileLayer(getTileUrl(isSatellite ? 'satellite' : 'street'), { maxZoom: 20 }).addTo(map);
     }
 
-    // إبقاء هاتف السائق نشطاً في الخلفية طوال فترة الشيفت
     async function startBackgroundKeepAlive() {
       try {
         if ('wakeLock' in navigator) wakeLockObj = await navigator.wakeLock.request('screen');
@@ -607,17 +605,17 @@
       try {
         const res = await fetch('/api/drivers');
         const drivers = await res.json();
-        driversMemory = drivers;
+        driversMemory = Array.isArray(drivers) ? drivers : [];
         
         select.innerHTML = `<option value="admin">admin</option>`;
         if (reportSelect) reportSelect.innerHTML = '';
-        drivers.forEach(d => {
+        driversMemory.forEach(d => {
           const displayLabel = `${d.username} ${d.plate_number ? `(${d.plate_number})` : ''}`;
           select.innerHTML += `<option value="${d.username}">${displayLabel}</option>`;
           if (reportSelect) reportSelect.innerHTML += `<option value="${d.id}">${displayLabel}</option>`;
         });
         const totalEl = document.getElementById('totalDriversCount');
-        if (totalEl) totalEl.innerText = drivers.length;
+        if (totalEl) totalEl.innerText = driversMemory.length;
       } catch (e) {
         console.error(e);
       }
@@ -684,7 +682,6 @@
       document.getElementById('loginPin').value = '';
     }
 
-    // دوال تغيير كلمة المرور للأدمن
     function openAdminPasswordModal() {
       document.getElementById('adminPasswordModal').classList.remove('hidden');
       document.getElementById('adminCurrentPassword').value = '';
@@ -738,7 +735,6 @@
       }
     }
 
-    // واجهة السائق
     async function setupDriverView() {
       document.getElementById('driverSection').classList.remove('hidden');
       document.getElementById('driverNameDisplay').innerText = currentUser.username;
@@ -1006,7 +1002,7 @@
         loadSystemSpeedLimit();
       }
       loadAdminData();
-      trackAdminOwnLocation(); // بدء سحب موقع الأدمن نفسه
+      trackAdminOwnLocation();
 
       clearInterval(adminLiveSecondsTicker);
       adminLiveSecondsTicker = setInterval(() => {
@@ -1040,7 +1036,6 @@
       });
     }
 
-    // سحب وتحديث موقع الأدمن الشخصي
     function trackAdminOwnLocation() {
       if ('geolocation' in navigator) {
         navigator.geolocation.watchPosition(
@@ -1092,7 +1087,6 @@
       }
     }
 
-    // رسم وتحديث الخط الوردي المباشر بين الأدمن والسائق المختار
     function updateDistanceLines() {
       if (!map || !adminLocation || !currentlyTrackedDriverId) return;
 
@@ -1134,132 +1128,137 @@
     }
 
     async function loadAdminData() {
-      const res = await fetch('/api/admin/active-drivers');
-      const allFleetDrivers = await res.json();
+      try {
+        const res = await fetch('/api/admin/active-drivers');
+        const data = await res.json();
+        const allFleetDrivers = Array.isArray(data) ? data : [];
 
-      let activeCount = 0;
-      let overtimeCount = 0;
-      activeDriversCache = [];
+        let activeCount = 0;
+        let overtimeCount = 0;
+        activeDriversCache = [];
 
-      const listContainer = document.getElementById('activeDriversList');
-      listContainer.innerHTML = '';
+        const listContainer = document.getElementById('activeDriversList');
+        listContainer.innerHTML = '';
 
-      if (allFleetDrivers.length === 0) {
-        listContainer.innerHTML = `<div class="text-center text-slate-500 text-xs py-10">لا يوجد باصات مسجلة في الأسطول</div>`;
-      }
-
-      allFleetDrivers.forEach(d => {
-        const isActive = (d.shift_status === 'active');
-        if (isActive) {
-          activeCount++;
-          activeDriversCache.push(d);
+        if (allFleetDrivers.length === 0) {
+          listContainer.innerHTML = `<div class="text-center text-slate-500 text-xs py-10">لا يوجد باصات مسجلة في الأسطول</div>`;
         }
 
-        if (isActive) {
-          const start = new Date(d.start_time);
-          const elapsedSeconds = Math.max(0, Math.floor((new Date() - start) / 1000));
-          const elapsedMins = Math.floor(elapsedSeconds / 60);
-
-          const totalBaseRequiredMins = (d.daily_base_hours || 8) * 60;
-          const totalEstimatedMinsToday = (d.completed_base_minutes_today || 0) + elapsedMins;
-          const isOvertimeNow = totalEstimatedMinsToday > totalBaseRequiredMins;
-          if (isOvertimeNow) overtimeCount++;
-
-          const isMoving = d.location && d.location.speed >= 4;
-          const isOverSpeed = d.location && d.location.isOverSpeed;
-          const speedText = isMoving ? `⚡ ${d.location.speed} كم/س` : '';
-          const distanceKm = d.location ? (d.location.distanceKm || 0).toFixed(1) : '0.0';
-          const batteryText = d.location && d.location.battery !== null ? `🔋 ${d.location.battery}%` : '';
-
-          // حساب المسافة بين الأدمن وهذا السائق
-          let distanceToAdminStr = '';
-          let gmapsDirLink = '';
-          if (adminLocation && d.location) {
-            const distKm = calculateDistanceKm(adminLocation.lat, adminLocation.lng, d.location.lat, d.location.lng);
-            distanceToAdminStr = `يبعد عنك: ${distKm.toFixed(1)} كم`;
-            gmapsDirLink = `https://www.google.com/maps/dir/?api=1&origin=${adminLocation.lat},${adminLocation.lng}&destination=${d.location.lat},${d.location.lng}`;
+        allFleetDrivers.forEach(d => {
+          const isActive = (d.shift_status === 'active');
+          if (isActive) {
+            activeCount++;
+            activeDriversCache.push(d);
           }
 
-          let busIconBg = isMoving ? 'bg-emerald-600' : 'bg-rose-600';
-          if (isOverSpeed) busIconBg = 'bg-amber-500 animate-pulse';
+          if (isActive) {
+            const start = new Date(d.start_time);
+            const elapsedSeconds = Math.max(0, Math.floor((new Date() - start) / 1000));
+            const elapsedMins = Math.floor(elapsedSeconds / 60);
 
-          listContainer.innerHTML += `
-            <div id="admin_card_${d.driver_id}" class="bg-slate-800/80 p-3 rounded-2xl border ${isOverSpeed ? 'border-amber-500 bg-amber-500/10' : (isOvertimeNow ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700/60')} space-y-2">
-              <div class="flex justify-between items-start">
-                <div class="flex items-center gap-2.5">
-                  <div id="admin_card_busicon_${d.driver_id}" class="w-9 h-9 rounded-xl ${busIconBg} text-white flex items-center justify-center font-bold text-sm shadow-md transition-colors duration-300">
-                    <i class="fa-solid fa-bus"></i>
-                  </div>
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <h4 class="font-bold text-sm text-white">${d.username}</h4>
-                      ${batteryText ? `<span id="admin_card_battery_${d.driver_id}" class="text-[10px] text-slate-400 font-mono">${batteryText}</span>` : ''}
+            const totalBaseRequiredMins = (d.daily_base_hours || 8) * 60;
+            const totalEstimatedMinsToday = (d.completed_base_minutes_today || 0) + elapsedMins;
+            const isOvertimeNow = totalEstimatedMinsToday > totalBaseRequiredMins;
+            if (isOvertimeNow) overtimeCount++;
+
+            const isMoving = d.location && d.location.speed >= 4;
+            const isOverSpeed = d.location && d.location.isOverSpeed;
+            const speedText = isMoving ? `⚡ ${d.location.speed} كم/س` : '';
+            const distanceKm = d.location ? (d.location.distanceKm || 0).toFixed(1) : '0.0';
+            const batteryText = d.location && d.location.battery !== null ? `🔋 ${d.location.battery}%` : '';
+
+            let distanceToAdminStr = '';
+            let gmapsDirLink = '';
+            if (adminLocation && d.location) {
+              const distKm = calculateDistanceKm(adminLocation.lat, adminLocation.lng, d.location.lat, d.location.lng);
+              distanceToAdminStr = `يبعد عنك: ${distKm.toFixed(1)} كم`;
+              gmapsDirLink = `https://www.google.com/maps/dir/?api=1&origin=${adminLocation.lat},${adminLocation.lng}&destination=${d.location.lat},${d.location.lng}`;
+            }
+
+            let busIconBg = isMoving ? 'bg-emerald-600' : 'bg-rose-600';
+            if (isOverSpeed) busIconBg = 'bg-amber-500 animate-pulse';
+
+            listContainer.innerHTML += `
+              <div id="admin_card_${d.driver_id}" class="bg-slate-800/80 p-3 rounded-2xl border ${isOverSpeed ? 'border-amber-500 bg-amber-500/10' : (isOvertimeNow ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700/60')} space-y-2">
+                <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-2.5">
+                    <div id="admin_card_busicon_${d.driver_id}" class="w-9 h-9 rounded-xl ${busIconBg} text-white flex items-center justify-center font-bold text-sm shadow-md transition-colors duration-300">
+                      <i class="fa-solid fa-bus"></i>
                     </div>
-                    <span class="text-[11px] text-sky-400 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30">نشط الآن 🟢</span>
-                  <div id="admin_card_speed_${d.driver_id}" class="text-[11px] font-bold ${isOverSpeed ? 'text-amber-400' : 'text-emerald-400'} mt-1">${speedText}</div>
-                </div>
-              </div>
-
-              ${distanceToAdminStr ? `
-                <div class="text-[10px] text-pink-400 font-bold flex justify-between items-center bg-pink-950/30 px-2 py-1 rounded-lg border border-pink-900/40">
-                  <span><i class="fa-solid fa-ruler-horizontal ml-1"></i> ${distanceToAdminStr}</span>
-                  <a href="${gmapsDirLink}" target="_blank" class="text-sky-400 hover:underline"><i class="fa-solid fa-diamond-turn-right ml-0.5"></i> توجّه إليه</a>
-                </div>
-              ` : ''}
-
-              <div class="flex justify-between items-center text-xs text-slate-300 pt-1 border-t border-slate-700/40">
-                <div class="flex items-center gap-2">
-                  <span class="font-mono text-white text-xs font-black bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700" id="admin_timer_display_${d.driver_id}">
-                    ${formatSecondsToTimer(elapsedSeconds)}
-                  </span>
-                  <span id="admin_card_km_${d.driver_id}" class="text-sky-400 font-mono font-bold text-[11px]">(${distanceKm} كم)</span>
-                </div>
-                ${d.location ? `<button onclick="focusMapOnDriver(${d.location.lat}, ${d.location.lng}, ${d.driver_id})" class="text-[11px] text-sky-400 hover:underline font-bold"><i class="fa-solid fa-location-crosshairs"></i> تتبع بالخريطة</button>` : '<span class="text-[11px] text-slate-500">GPS...</span>'}
-              </div>
-            </div>
-          `;
-          if (d.location) updateMapMarker(d.location, isOvertimeNow, d.plate_number);
-
-        } else {
-          const closedInfo = d.lastClosed;
-          const closeTimeStr = (closedInfo && closedInfo.closedAt) ? new Date(closedInfo.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (d.end_time ? new Date(d.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--');
-          const lastDistance = (closedInfo && closedInfo.distanceKm !== undefined) ? closedInfo.distanceKm.toFixed(1) : (d.distance_km || 0).toFixed(1);
-          const lastBattery = (closedInfo && closedInfo.battery !== null) ? `🔋 ${closedInfo.battery}%` : '';
-
-          listContainer.innerHTML += `
-            <div class="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 space-y-2 opacity-85">
-              <div class="flex justify-between items-start">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-9 h-9 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-sm">
-                    <i class="fa-solid fa-bus"></i>
-                  </div>
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <h4 class="font-bold text-sm text-slate-300">${d.username}</h4>
-                      ${lastBattery ? `<span class="text-[10px] text-slate-500 font-mono">${lastBattery}</span>` : ''}
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-sm text-white">${d.username}</h4>
+                        ${batteryText ? `<span id="admin_card_battery_${d.driver_id}" class="text-[10px] text-slate-400 font-mono">${batteryText}</span>` : ''}
+                      </div>
+                      <span class="text-[11px] text-sky-400 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
                     </div>
-                    <span class="text-[11px] text-slate-500 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-lg border border-emerald-500/30">نشط الآن 🟢</span>
+                    <div id="admin_card_speed_${d.driver_id}" class="text-[11px] font-bold ${isOverSpeed ? 'text-amber-400' : 'text-emerald-400'} mt-1">${speedText}</div>
                   </div>
                 </div>
-                <span class="text-[10px] bg-slate-800 text-slate-400 font-bold px-2 py-0.5 rounded-lg border border-slate-700">شيفت مغلق ⚪</span>
-              </div>
-              <div class="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-slate-800">
-                <span>أغلق: <b class="text-slate-300 font-mono" dir="ltr">${closeTimeStr}</b></span>
-                <span class="font-mono text-slate-400">${lastDistance} كم | متوقف</span>
-              </div>
-            </div>
-          `;
-        }
-      });
 
-      document.getElementById('activeDriversCount').innerText = activeCount;
-      document.getElementById('activeDriversCountBadge').innerText = `${activeCount} نشط / ${allFleetDrivers.length} الإجمالي`;
-      document.getElementById('overtimeShiftsCount').innerText = overtimeCount;
-      loadAdminDriversList();
+                ${distanceToAdminStr ? `
+                  <div class="text-[10px] text-pink-400 font-bold flex justify-between items-center bg-pink-950/30 px-2 py-1 rounded-lg border border-pink-900/40">
+                    <span><i class="fa-solid fa-ruler-horizontal ml-1"></i> ${distanceToAdminStr}</span>
+                    <a href="${gmapsDirLink}" target="_blank" class="text-sky-400 hover:underline"><i class="fa-solid fa-diamond-turn-right ml-0.5"></i> توجّه إليه</a>
+                  </div>
+                ` : ''}
+
+                <div class="flex justify-between items-center text-xs text-slate-300 pt-1 border-t border-slate-700/40">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono text-white text-xs font-black bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700" id="admin_timer_display_${d.driver_id}">
+                      ${formatSecondsToTimer(elapsedSeconds)}
+                    </span>
+                    <span id="admin_card_km_${d.driver_id}" class="text-sky-400 font-mono font-bold text-[11px]">(${distanceKm} كم)</span>
+                  </div>
+                  ${d.location ? `<button onclick="focusMapOnDriver(${d.location.lat}, ${d.location.lng}, ${d.driver_id})" class="text-[11px] text-sky-400 hover:underline font-bold"><i class="fa-solid fa-location-crosshairs"></i> تتبع بالخريطة</button>` : '<span class="text-[11px] text-slate-500">GPS...</span>'}
+                </div>
+              </div>
+            `;
+            if (d.location) updateMapMarker(d.location, isOvertimeNow, d.plate_number);
+
+          } else {
+            const closedInfo = d.lastClosed;
+            const closeTimeStr = (closedInfo && closedInfo.closedAt) ? new Date(closedInfo.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (d.end_time ? new Date(d.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--');
+            const lastDistance = (closedInfo && closedInfo.distanceKm !== undefined) ? closedInfo.distanceKm.toFixed(1) : (d.distance_km || 0).toFixed(1);
+            const lastBattery = (closedInfo && closedInfo.battery !== null) ? `🔋 ${closedInfo.battery}%` : '';
+
+            listContainer.innerHTML += `
+              <div class="bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80 space-y-2 opacity-85">
+                <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-sm">
+                      <i class="fa-solid fa-bus"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h4 class="font-bold text-sm text-slate-300">${d.username}</h4>
+                        ${lastBattery ? `<span class="text-[10px] text-slate-500 font-mono">${lastBattery}</span>` : ''}
+                      </div>
+                      <span class="text-[11px] text-slate-500 font-mono">${d.plate_number ? `${d.plate_number}` : ''}</span>
+                    </div>
+                  </div>
+                  <span class="text-[10px] bg-slate-800 text-slate-400 font-bold px-2 py-0.5 rounded-lg border border-slate-700">شيفت مغلق ⚪</span>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                  <span>أغلق: <b class="text-slate-300 font-mono" dir="ltr">${closeTimeStr}</b></span>
+                  <span class="font-mono text-slate-400">${lastDistance} كم | متوقف</span>
+                </div>
+              </div>
+            `;
+          }
+        });
+
+        document.getElementById('activeDriversCount').innerText = activeCount;
+        document.getElementById('activeDriversCountBadge').innerText = `${activeCount} نشط / ${allFleetDrivers.length} الإجمالي`;
+        document.getElementById('overtimeShiftsCount').innerText = overtimeCount;
+      } catch(err) {
+        console.error('Error loading admin data:', err);
+      } finally {
+        loadAdminDriversList();
+      }
     }
 
     function initMap() {
@@ -1329,11 +1328,10 @@
       const displayName = username || 'driver';
       const kmDisplay = (distanceKm || 0).toFixed(1);
 
-      // رسم مسار حركة الباص بشوارع المدينة (أزرق متصل/متقطع)
       if (trail && trail.length > 1) {
         if (!routePolylines[driverId]) {
           routePolylines[driverId] = L.polyline(trail, {
-            color: '#0284c7', // الخط الأزرق الخاص بمسار الباص
+            color: '#0284c7', // الخط الأزرق الخاص بمسار الباص الفعلي
             weight: 4,
             opacity: 0.85
           }).addTo(map);
@@ -1362,7 +1360,6 @@
         iconAnchor: [0, 0]
       });
 
-      // رابط اتجاهات جوجل من موقع الأدمن إلى السائق مباشرة
       const gmapsDirLink = adminLocation 
         ? `https://www.google.com/maps/dir/?api=1&origin=${adminLocation.lat},${adminLocation.lng}&destination=${lat},${lng}`
         : `https://www.google.com/maps?q=${lat},${lng}`;
@@ -1397,13 +1394,11 @@
       }
     }
 
-    // تركيز الخريطة على سائق محدد ورسم الخط المباشر (الوردي) بينك وبينه
     function focusMapOnDriver(lat, lng, driverId) {
       currentlyTrackedDriverId = driverId;
       updateDistanceLines();
 
       if (adminLocation) {
-        // تكبير الخريطة لتشمل موقعك وموقع السائق والخط الواصل بينكما معاً
         const bounds = L.latLngBounds([
           [adminLocation.lat, adminLocation.lng],
           [lat, lng]
@@ -1415,12 +1410,11 @@
     }
 
     async function loadAdminDriversList() {
-      const res = await fetch('/api/drivers');
-      const drivers = await res.json();
-      driversMemory = drivers;
       const container = document.getElementById('driversTable');
+      if (!container) return;
       container.innerHTML = '';
-      drivers.forEach(d => {
+      
+      driversMemory.forEach(d => {
         container.innerHTML += `
           <div class="bg-slate-800/80 p-3 rounded-2xl flex justify-between items-center text-xs border border-slate-700/60">
             <div>
