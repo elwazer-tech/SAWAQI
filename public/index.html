@@ -239,7 +239,7 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- كروت متابعة الأسطول والنشاط الميداني -->
+        <!-- كروت متابعة الأسطول -->
         <div class="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-4 flex flex-col h-[550px]">
           <div class="flex justify-between items-center border-b border-slate-800 pb-3">
             <div class="flex items-center gap-2">
@@ -251,7 +251,7 @@
           <div id="activeDriversList" class="space-y-3 overflow-y-auto flex-1 pr-1"></div>
         </div>
 
-        <!-- خريطة التتبع مع زر موقعي وخط المسافة -->
+        <!-- خريطة التتبع -->
         <div id="mapWrapperCard" class="lg:col-span-2 bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col h-[550px] overflow-hidden">
           <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
             <div class="flex items-center gap-2">
@@ -493,16 +493,22 @@
     }
 
     function getTileUrl(type) {
-      if (type === 'satellite') return `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=ar`;
-      return `https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=ar`;
+      const hl = currentLang === 'ar' ? 'ar' : 'en';
+      if (type === 'satellite') return `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=${hl}`;
+      return `https://mt1.google.com/vt/lyrs=m&x={x}&y={z}&z=${hl}`;
     }
 
     function reloadMapTileWithLanguage() {
       if (!map) return;
       if (currentTileLayer) map.removeLayer(currentTileLayer);
-      currentTileLayer = L.tileLayer(getTileUrl(isSatellite ? 'satellite' : 'street'), { maxZoom: 20 }).addTo(map);
+      const hl = currentLang === 'ar' ? 'ar' : 'en';
+      const url = isSatellite 
+        ? `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&hl=${hl}` 
+        : `https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=${hl}`;
+      currentTileLayer = L.tileLayer(url, { maxZoom: 20 }).addTo(map);
     }
 
+    // إبقاء هاتف السائق نشطاً في الخلفية طوال فترة الشيفت
     async function startBackgroundKeepAlive() {
       try {
         if ('wakeLock' in navigator) wakeLockObj = await navigator.wakeLock.request('screen');
@@ -939,12 +945,20 @@
       }
     }
 
+    // إرسال الموقع الفوري مع محاولة ثانية بدقة قياسية إن تعذرت الدقة العالية داخل الغرف
     function sendInstantLocation() {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           (pos) => emitLocation(pos),
-          () => {},
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          () => {
+            // محاولة ثانية مخففة
+            navigator.geolocation.getCurrentPosition(
+              (pos2) => emitLocation(pos2),
+              (err) => console.log('Location error:', err),
+              { enableHighAccuracy: false, timeout: 20000, maximumAge: 30000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
         );
       }
     }
@@ -959,9 +973,17 @@
       return null;
     }
 
+    // إرسال الموقع باستمرار كل 15 ثانية حتى لو الهاتف ثابت
     function startDriverGpsTracking() {
       if (!('geolocation' in navigator)) return;
       sendInstantLocation();
+
+      // إرسال دوري كل 15 ثانية لمنع توقف الهاتف وهو متوقف
+      setInterval(() => {
+        if (currentUser && currentUser.role === 'driver' && activeShift) {
+          sendInstantLocation();
+        }
+      }, 15000);
       
       navigator.geolocation.watchPosition(
         (pos) => {
@@ -970,20 +992,22 @@
           }
         },
         () => {},
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
       );
     }
 
     async function emitLocation(pos) {
       const badge = document.getElementById('gpsStatusBadge');
-      badge.className = 'text-xs px-3.5 py-1.5 rounded-xl font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-2';
-      document.getElementById('gpsStatusText').innerText = 'GPS متصل بدقة عالية';
+      if (badge) {
+        badge.className = 'text-xs px-3.5 py-1.5 rounded-xl font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-2';
+        document.getElementById('gpsStatusText').innerText = 'GPS متصل بنجاح';
+      }
 
       const speedKmH = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
       const battery = await getBatteryPercentage();
 
       socket.emit('update_location', {
-        driverId: currentUser.id,
+        driverId: Number(currentUser.id),
         username: currentUser.username,
         plateNumber: currentUser.plate_number || '',
         lat: pos.coords.latitude,
@@ -1064,7 +1088,7 @@
               <i class="fa-solid fa-user-tie"></i>
             </div>
             <div class="mt-1 bg-purple-950/90 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-purple-700 shadow whitespace-nowrap">
-              موقعي (الإدارة)
+              موقعي (الإدارة) 📍
             </div>
           </div>
         `,
@@ -1087,10 +1111,11 @@
       }
     }
 
+    // رسم الخط الوردي المتقطع المباشر بين الأدمن والباص
     function updateDistanceLines() {
       if (!map || !adminLocation || !currentlyTrackedDriverId) return;
 
-      const driverLoc = liveLocations[currentlyTrackedDriverId];
+      const driverLoc = liveLocations[currentlyTrackedDriverId] || (markers[currentlyTrackedDriverId] ? markers[currentlyTrackedDriverId].getLatLng() : null);
       if (!driverLoc) {
         if (adminToDriverLine) {
           map.removeLayer(adminToDriverLine);
@@ -1106,9 +1131,9 @@
 
       if (!adminToDriverLine) {
         adminToDriverLine = L.polyline(points, {
-          color: '#ec4899', // وردي فاقع مميز تماماً عن مسار الباص الأزرق
-          weight: 3,
-          opacity: 0.9,
+          color: '#ec4899', // وردي فاقع متميز تماماً عن مسار الباص الأزرق
+          weight: 3.5,
+          opacity: 0.95,
           dashArray: '8, 8'
         }).addTo(map);
       } else {
@@ -1161,12 +1186,13 @@
             const isOvertimeNow = totalEstimatedMinsToday > totalBaseRequiredMins;
             if (isOvertimeNow) overtimeCount++;
 
-            const isMoving = d.location && d.location.speed >= 4;
+            const isMoving = d.location && Number(d.location.speed) >= 4;
             const isOverSpeed = d.location && d.location.isOverSpeed;
             const speedText = isMoving ? `⚡ ${d.location.speed} كم/س` : '';
-            const distanceKm = d.location ? (d.location.distanceKm || 0).toFixed(1) : '0.0';
+            const distanceKm = d.location ? (Number(d.location.distanceKm) || 0).toFixed(1) : '0.0';
             const batteryText = d.location && d.location.battery !== null ? `🔋 ${d.location.battery}%` : '';
 
+            // حساب المسافة الحية بين الأدمن وهذا السائق
             let distanceToAdminStr = '';
             let gmapsDirLink = '';
             if (adminLocation && d.location) {
@@ -1213,7 +1239,7 @@
                     </span>
                     <span id="admin_card_km_${d.driver_id}" class="text-sky-400 font-mono font-bold text-[11px]">(${distanceKm} كم)</span>
                   </div>
-                  ${d.location ? `<button onclick="focusMapOnDriver(${d.location.lat}, ${d.location.lng}, ${d.driver_id})" class="text-[11px] text-sky-400 hover:underline font-bold"><i class="fa-solid fa-location-crosshairs"></i> تتبع بالخريطة</button>` : '<span class="text-[11px] text-slate-500">GPS...</span>'}
+                  ${d.location ? `<button onclick="focusMapOnDriver(${d.location.lat}, ${d.location.lng}, ${d.driver_id})" class="text-[11px] text-sky-400 hover:underline font-bold"><i class="fa-solid fa-location-crosshairs"></i> تتبع بالخريطة</button>` : '<span class="text-[11px] text-slate-500">جاري انتظار GPS...</span>'}
                 </div>
               </div>
             `;
@@ -1263,7 +1289,7 @@
 
     function initMap() {
       map = L.map('map', { zoomControl: true, attributionControl: false }).setView([24.7136, 46.6753], 12);
-      currentTileLayer = L.tileLayer(getTileUrl('street'), { maxZoom: 20 }).addTo(map);
+      reloadMapTileWithLanguage();
 
       socket.on('driver_location_changed', (data) => {
         updateMapMarker(data);
@@ -1283,7 +1309,7 @@
         const battEl = document.getElementById(`admin_card_battery_${data.driverId}`);
         if (battEl && data.battery !== null) battEl.innerText = `🔋 ${data.battery}%`;
 
-        if (currentUser && currentUser.id === data.driverId) {
+        if (currentUser && Number(currentUser.id) === Number(data.driverId)) {
           const driverKm = document.getElementById('driverShiftKm');
           if (driverKm) driverKm.innerText = `${(data.distanceKm || 0).toFixed(1)} كم`;
         }
@@ -1326,12 +1352,13 @@
       const isMoving = (speed && speed >= 4);
       const vehiclePlate = plateNumber || fallbackPlate;
       const displayName = username || 'driver';
-      const kmDisplay = (distanceKm || 0).toFixed(1);
+      const kmDisplay = (Number(distanceKm) || 0).toFixed(1);
 
+      // رسم خط مسار الباص الأزرق بالشوارع
       if (trail && trail.length > 1) {
         if (!routePolylines[driverId]) {
           routePolylines[driverId] = L.polyline(trail, {
-            color: '#0284c7', // الخط الأزرق الخاص بمسار الباص الفعلي
+            color: '#0284c7', // أزرق خاص بمسار الباص الفعلي
             weight: 4,
             opacity: 0.85
           }).addTo(map);
@@ -1394,6 +1421,7 @@
       }
     }
 
+    // تركيز الخريطة ورسم الخط الوردي المتقطع المباشر بين الأدمن والباص
     function focusMapOnDriver(lat, lng, driverId) {
       currentlyTrackedDriverId = driverId;
       updateDistanceLines();
