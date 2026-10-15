@@ -140,7 +140,7 @@ async function initDatabase() {
                       VALUES (1, 'admin', '1234', 'owner', 'إدارة', '0500000000', 8, 1)`);
       });
     }
-    console.log('Database initialized successfully with persistent GPS coordinates.');
+    console.log('Database initialized successfully.');
   } catch (err) {
     console.error('Database Init Error:', err);
   }
@@ -232,7 +232,7 @@ app.post('/api/drivers', async (req, res) => {
     await dbQuery(`
       INSERT INTO users (username, pin_code, role, plate_number, phone, daily_base_hours, is_active) 
       VALUES (?, ?, 'driver', ?, ?, ?, 1)
-    `, [user, pin_code || '1111', plate_number || '', phone || '', daily_base_hours || 8]);
+    `, [user, pin_code || '1111', plate_number || '', phone || '', Number(daily_base_hours) || 8]);
 
     io.emit('drivers_list_updated');
     res.json({ success: true });
@@ -248,7 +248,7 @@ app.put('/api/drivers/:id', async (req, res) => {
 
   try {
     let query = `UPDATE users SET username=?, plate_number=?, phone=?, daily_base_hours=?`;
-    let params = [user, plate_number || '', phone || '', daily_base_hours || 8];
+    let params = [user, plate_number || '', phone || '', Number(daily_base_hours) || 8];
 
     if (pin_code && pin_code.trim()) {
       query += `, pin_code=?`;
@@ -280,7 +280,14 @@ app.get('/api/shifts/active/:driverId', async (req, res) => {
   const { driverId } = req.params;
   try {
     const result = await dbQuery(`SELECT * FROM shifts WHERE driver_id = ? AND status = 'active'`, [driverId]);
-    res.json({ activeShift: result.rows[0] || null });
+    const shift = result.rows[0] || null;
+    if (shift) {
+      shift.distance_km = Number(shift.distance_km || 0);
+      shift.duration_minutes = Number(shift.duration_minutes || 0);
+      shift.base_minutes = Number(shift.base_minutes || 0);
+      shift.overtime_minutes = Number(shift.overtime_minutes || 0);
+    }
+    res.json({ activeShift: shift });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -300,14 +307,13 @@ app.post('/api/shifts/start', async (req, res) => {
 
     const driverRes = await dbQuery(`SELECT daily_base_hours, username, plate_number, last_lat, last_lng FROM users WHERE id = ?`, [driverId]);
     const driver = driverRes.rows[0] || { daily_base_hours: 8, username: 'driver' };
-    const baseHours = driver.daily_base_hours || 8;
+    const baseHours = Number(driver.daily_base_hours) || 8;
 
     await dbQuery(`
       INSERT INTO shifts (driver_id, shift_date, start_time, is_first_shift, applied_daily_base_hours, distance_km, status)
       VALUES (?, ?, ?, ?, ?, 0, 'active')
     `, [driverId, today, now, isFirst, baseHours]);
 
-    // إذا كان للسائق موقع قديم مسجل، نفعله فوراً في الذاكرة الحية
     if (driver.last_lat && driver.last_lng) {
       liveLocations[driverId] = {
         driverId: Number(driverId),
@@ -349,7 +355,7 @@ app.post('/api/shifts/end', async (req, res) => {
 
     const startTime = new Date(shift.start_time);
     const durationMinutes = Math.max(1, Math.round((now - startTime) / (1000 * 60)));
-    const totalDistance = liveLocations[driverId] ? (liveLocations[driverId].distanceKm || 0) : (Number(shift.distance_km) || 0);
+    const totalDistance = Number(liveLocations[driverId] ? (liveLocations[driverId].distanceKm || 0) : (shift.distance_km || 0));
 
     lastClosedShiftDetails[driverId] = {
       closedAt: nowIso,
@@ -404,7 +410,15 @@ app.get('/api/shifts/history/:driverId', async (req, res) => {
   const { driverId } = req.params;
   try {
     const result = await dbQuery(`SELECT * FROM shifts WHERE driver_id = ? ORDER BY start_time DESC LIMIT 100`, [driverId]);
-    res.json(result.rows);
+    // ضمان تحويل كافة القيم الرقمية إلى Number لمنع أي خطأ toFixed
+    const formatted = result.rows.map(s => ({
+      ...s,
+      distance_km: Number(s.distance_km || 0),
+      duration_minutes: Number(s.duration_minutes || 0),
+      base_minutes: Number(s.base_minutes || 0),
+      overtime_minutes: Number(s.overtime_minutes || 0)
+    }));
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -498,7 +512,6 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
-// استعلام حالة الأسطول مع استرجاع آخر موقع محفوظ للسائق حتى لا يختفي الباص نهائياً
 app.get('/api/admin/active-drivers', async (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   try {
@@ -517,7 +530,6 @@ app.get('/api/admin/active-drivers', async (req, res) => {
         .filter(s => s.shift_date === today && s.status === 'completed')
         .reduce((sum, s) => sum + Number(s.base_minutes || 0), 0);
 
-      // تحديد موقع السائق: المباشر إن وجد، أو آخر موقع مسجل له في السحابة
       let loc = liveLocations[u.id] || liveLocations[Number(u.id)] || null;
       if (!loc && u.last_lat && u.last_lng) {
         loc = {
@@ -559,7 +571,6 @@ app.get('/api/admin/active-drivers', async (req, res) => {
   }
 });
 
-// معالجة وبث المواقع وحفظ آخر موقع في سحابة Neon الدائمة
 io.on('connection', (socket) => {
   socket.emit('initial_locations', liveLocations);
   socket.emit('speed_limit_changed', { maxSpeed: systemMaxSpeed });
@@ -572,7 +583,6 @@ io.on('connection', (socket) => {
       const isOverSpeed = currentSpeed > systemMaxSpeed;
       const idKey = Number(driverId);
 
-      // حفظ الإحداثيات في قاعدة البيانات الدائمة
       try {
         await dbQuery(`UPDATE users SET last_lat = ?, last_lng = ? WHERE id = ?`, [lat, lng, idKey]);
       } catch(e) {}
